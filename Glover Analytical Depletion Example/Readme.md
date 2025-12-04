@@ -122,25 +122,24 @@ conclusion is corroborated by figure 4 of Zipper et al. (2019). <br/>
 For the depletion apportionment criteria here we will use inverse
 distance. This is defined by the following equation:<br/>
 $$\Large f_{(r,w)} = \frac{\frac{1}{d_{(r,w)}^W}}{\sum_{j=1,n} \frac{1}{d_{(r_{j},w)}^W}}$$
-<br/>     Where:<br/>         $f_{(r,w)} [-]=$ the fraction of the
-depletion potential from well ‘w’ assigned to reach ‘r’<br/>
-        $d_{(r,w)} [L]=$ the distance of well ‘w’ to reach ‘r’<br/>
-        $W =[-]$ the power of the equation (1 for inverse distance, 2
-for inverse distance squared)<br/>
-        $\sum_{j = 1,n} \frac{1}{d_{(r_{j},w)}^W} [L]=$ the sum of the
-distances from well ‘w’ to all reaches (j = 1,n) assigned to
-it<br/><br/>
+<br/>     Where:<br/>          $f_{(r,w)} [-]=$ the fraction of the
+depletion potential from well ‘w’ assigned to reach ‘r’<br/>         
+$d_{(r,w)} [L]=$ the distance of well ‘w’ to reach ‘r’<br/>         
+$W =[-]$ the power of the equation (1 for inverse distance, 2 for
+inverse distance squared)<br/>         
+$\sum_{j = 1,n} \frac{1}{d_{(r_{j},w)}^W} [L]=$ the sum of the distances
+from well ‘w’ to all reaches (j = 1,n) assigned to it<br/><br/>
 
 ### Example
 
 <br/> We have a well ‘w’ that is connected to four reaches, ‘A’,‘B’,‘C’
 that are distances 10,40,50 from the well. Using the above formula we
-would arrive at the following for reach ‘A’.
-$$\Large f_{(A,w)} = \frac{0.1}{0.1 + 0.025 + 0.02} = 0.689$$ So we see
-that the closest reach ‘A’ is apportioned the lions share of whatever
-depletions are calculated from well ‘w’. No matter what depletion
-apportionment we use, the sum should always equal to 1. <br/> <br/>
-<br/> <br/> <br/> <br/>
+would arrive at the following for reach ‘A’.<br/>
+$$\Large f_{(A,w)} = \frac{0.1}{0.1 + 0.025 + 0.02} = 0.689$$ <br/> So
+we see that the closest reach ‘A’ is apportioned the lions share of
+whatever depletions are calculated from well ‘w’. No matter what
+depletion apportionment we use, the sum should always equal to 1. <br/>
+<br/> <br/> <br/> <br/> <br/>
 
 # Depletion Analytical Model
 
@@ -250,17 +249,17 @@ properties.
     ## 138:   POINT (-189803.1 397138) 0.08639017  51.70103
 
 ``` r
-# calculate_stream_depletions(streams = Shasta_Streams,
-#                             wells = random_wells,
-#                             pumping = pumping,
-#                             influence_radius = influence_radius, # influence radius calculated above
-#                             proximity_criteria = 'local area',
-#                             apportionment_criteria = 'inverse distance',
-#                             analytical_model = 'glover',
-#                             data_out_dir = file.path(getwd(),'Output'),
-#                             diag_out_dir = file.path(getwd(),'Output'),
-#                             stor_coef_key = 'Stor', # where to find storage coef in well set
-#                             well_transmissivity_key = 'Tr') # where to find transmissivity in well set
+calculate_stream_depletions(streams = Shasta_Streams,
+                            wells = random_wells,
+                            pumping = pumping,
+                            influence_radius = influence_radius, # influence radius calculated above
+                            proximity_criteria = 'local area',
+                            apportionment_criteria = 'inverse distance',
+                            analytical_model = 'glover',
+                            data_out_dir = file.path(getwd(),'Output'),
+                            diag_out_dir = file.path(getwd(),'Output'),
+                            stor_coef_key = 'Stor', # where to find storage coef in well set
+                            well_transmissivity_key = 'Tr') # where to find transmissivity in well set
 ```
 
 <br/> <br/> <br/> <br/> <br/> <br/>
@@ -272,6 +271,7 @@ intermittent pumping effected depletions.<br/> <br/> Of note is that
 when pumping is at 0 depletions are still accumulating from pumping,
 indicating both a delayed response (as expected) from pumping and that
 the break from pumping was not long enough to reduce depletions.<br/>
+![](Readme_files/figure-gfm/finalexampleplot-1.png)<!-- -->
 
 <br/> <br/> <br/> As aquifer properties are assigned randomly, we also
 expect a random assortment in the spatial variability of our depletions,
@@ -285,3 +285,4 @@ context as to whether the absolute volume of depletions are large in
 relation to the flows in the rivers.<br/> <br/> Here streams are colored
 by how much of the global maximum (324 \[ $\frac{L^3}{T}$ \]) depletions
 they experienced .
+![](Readme_files/figure-gfm/finalexampleplot2-1.png)<!-- -->

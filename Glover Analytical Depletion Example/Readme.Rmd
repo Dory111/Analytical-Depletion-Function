@@ -204,16 +204,17 @@ For the depletion apportionment criteria here we will use inverse distance. This
 $$\Large f_{(r,w)} = \frac{\frac{1}{d_{(r,w)}^W}}{\sum_{j=1,n} \frac{1}{d_{(r_{j},w)}^W}}$$
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;Where:<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$f_{(r,w)} [-]=$ the fraction of the depletion potential from well 'w' assigned to reach 'r'<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$d_{(r,w)} [L]=$ the distance of well 'w' to reach 'r'<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$W =[-]$ the power of the equation (1 for inverse distance, 2 for inverse distance squared)<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$\sum_{j = 1,n} \frac{1}{d_{(r_{j},w)}^W} [L]=$ the sum of the distances from well 'w' to all reaches (j = 1,n) assigned to it<br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; $f_{(r,w)} [-]=$ the fraction of the depletion potential from well 'w' assigned to reach 'r'<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; $d_{(r,w)} [L]=$ the distance of well 'w' to reach 'r'<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; $W =[-]$ the power of the equation (1 for inverse distance, 2 for inverse distance squared)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; $\sum_{j = 1,n} \frac{1}{d_{(r_{j},w)}^W} [L]=$ the sum of the distances from well 'w' to all reaches (j = 1,n) assigned to it<br/><br/>
 
 ### Example
 
 <br/>
-We have a well 'w' that is connected to four reaches, 'A','B','C' that are distances 10,40,50 from the well. Using the above formula we would arrive at the following for reach 'A'.
+We have a well 'w' that is connected to four reaches, 'A','B','C' that are distances 10,40,50 from the well. Using the above formula we would arrive at the following for reach 'A'.<br/>
 $$\Large f_{(A,w)} = \frac{0.1}{0.1 + 0.025 + 0.02} = 0.689$$
+<br/>
 So we see that the closest reach 'A' is apportioned the lions share of whatever depletions are calculated from well 'w'. No matter what depletion apportionment we use, the sum should always equal to 1.
 <br/>
 <br/>
@@ -300,17 +301,17 @@ data.table(random_wells)
 
 
 ```{r examplecalc, warning = FALSE, fig.height = 10, fig.width = 8, message = FALSE, error = FALSE}
-# calculate_stream_depletions(streams = Shasta_Streams,
-#                             wells = random_wells,
-#                             pumping = pumping,
-#                             influence_radius = influence_radius, # influence radius calculated above
-#                             proximity_criteria = 'local area',
-#                             apportionment_criteria = 'inverse distance',
-#                             analytical_model = 'glover',
-#                             data_out_dir = file.path(getwd(),'Output'),
-#                             diag_out_dir = file.path(getwd(),'Output'),
-#                             stor_coef_key = 'Stor', # where to find storage coef in well set
-#                             well_transmissivity_key = 'Tr') # where to find transmissivity in well set
+calculate_stream_depletions(streams = Shasta_Streams,
+                            wells = random_wells,
+                            pumping = pumping,
+                            influence_radius = influence_radius, # influence radius calculated above
+                            proximity_criteria = 'local area',
+                            apportionment_criteria = 'inverse distance',
+                            analytical_model = 'glover',
+                            data_out_dir = file.path(getwd(),'Output'),
+                            diag_out_dir = file.path(getwd(),'Output'),
+                            stor_coef_key = 'Stor', # where to find storage coef in well set
+                            well_transmissivity_key = 'Tr') # where to find transmissivity in well set
 ```
 <br/>
 <br/>
@@ -326,59 +327,58 @@ In our example we can look to a random reach to see how our intermittent pumping
 <br/>
 Of note is that when pumping is at 0 depletions are still accumulating from pumping, indicating both a delayed response (as expected) from pumping and that the break from pumping was not long enough to reduce depletions.<br/>
 ```{r finalexampleplot, warning = FALSE, fig.height = 10, fig.width = 8, echo = FALSE}
-dep <- 324
-# dep <- read.csv(file.path(getwd(),'Output','volumetric_depletions_by_reach.csv'))
-# nf <- layout(matrix(c(1,2),
-#                     ncol = 1,
-#                     nrow = 2), heights = c(0.5,1))
-# plot(pumping[1,],
-#      ylab = 'L^3/T',
-#      cex.lab = 1.4)
-# rect(par('usr')[1],
-#      par('usr')[3],
-#      par('usr')[2],
-#      par('usr')[4],
-#      col = 'gray97')
-# grid()
-# points(pumping[1,],
-#        cex = 1,
-#        col = 'dodgerblue4',
-#        pch = 19)
-# box()
-# 
-# x_range <- par('usr')[2] - par('usr')[1]
-# y_range <- par('usr')[4] - par('usr')[3]
-# text(xpd = NA,
-#      labels = 'Random Pumping with Periods of Zero Pumping',
-#      pos = 4,
-#      x = par('usr')[1] - x_range*0.01,
-#      y = par('usr')[4] + y_range*0.1,
-#      cex = 1.6)
-# 
-# plot(as.vector(unlist(dep[1,-c(1)])),
-#      xlab = 'Timestep',
-#      ylab = 'L^3/T',
-#      cex.lab = 1.4)
-# rect(par('usr')[1],
-#      par('usr')[3],
-#      par('usr')[2],
-#      par('usr')[4],
-#      col = 'gray97')
-# grid()
-# lines(as.vector(unlist(dep[1,-c(1)])),
-#       cex = 1,
-#       col = 'dodgerblue4',
-#       pch = 19,
-#       lwd = 3)
-# box()
-# x_range <- par('usr')[2] - par('usr')[1]
-# y_range <- par('usr')[4] - par('usr')[3]
-# text(xpd = NA,
-#      labels = 'Depletions on Reach 1',
-#      pos = 4,
-#      x = par('usr')[1] - x_range*0.01,
-#      y = par('usr')[4] + y_range*0.05,
-#      cex = 1.6)
+dep <- read.csv(file.path(getwd(),'Output','volumetric_depletions_by_reach.csv'))
+nf <- layout(matrix(c(1,2),
+                    ncol = 1,
+                    nrow = 2), heights = c(0.5,1))
+plot(pumping[1,],
+     ylab = 'L^3/T',
+     cex.lab = 1.4)
+rect(par('usr')[1],
+     par('usr')[3],
+     par('usr')[2],
+     par('usr')[4],
+     col = 'gray97')
+grid()
+points(pumping[1,],
+       cex = 1,
+       col = 'dodgerblue4',
+       pch = 19)
+box()
+
+x_range <- par('usr')[2] - par('usr')[1]
+y_range <- par('usr')[4] - par('usr')[3]
+text(xpd = NA,
+     labels = 'Random Pumping with Periods of Zero Pumping',
+     pos = 4,
+     x = par('usr')[1] - x_range*0.01,
+     y = par('usr')[4] + y_range*0.1,
+     cex = 1.6)
+
+plot(as.vector(unlist(dep[1,-c(1)])),
+     xlab = 'Timestep',
+     ylab = 'L^3/T',
+     cex.lab = 1.4)
+rect(par('usr')[1],
+     par('usr')[3],
+     par('usr')[2],
+     par('usr')[4],
+     col = 'gray97')
+grid()
+lines(as.vector(unlist(dep[1,-c(1)])),
+      cex = 1,
+      col = 'dodgerblue4',
+      pch = 19,
+      lwd = 3)
+box()
+x_range <- par('usr')[2] - par('usr')[1]
+y_range <- par('usr')[4] - par('usr')[3]
+text(xpd = NA,
+     labels = 'Depletions on Reach 1',
+     pos = 4,
+     x = par('usr')[1] - x_range*0.01,
+     y = par('usr')[4] + y_range*0.05,
+     cex = 1.6)
 
 ```
 
@@ -391,37 +391,35 @@ Due to the random nature of our well location generation, there are some that ar
 <br/>
 Here streams are colored by how much of the global maximum (`r round(max(dep, na.rm = T),0)` [ $\frac{L^3}{T}$ ]) depletions they experienced .
 ```{r finalexampleplot2, warning = FALSE, fig.height = 10, fig.width = 8, echo = FALSE}
-# 
-# mdep <- c()
-# for(i in 1:nrow(Shasta_Streams)){
-#   mdep <- append(mdep,
-#                  max(as.vector(unlist(dep[i,]))))
-# }
-# mdep <- mdep/max(mdep)
-# Shasta_Streams$mdep <- mdep
-# 
-# 
-# plot(st_geometry(Shasta_B118), lwd = 3)
-# plot(st_geometry(random_wells), add = TRUE, pch = 19, col = '#A21')
-# plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep < 0.25,]),
-#      col = 'dodgerblue4', lwd = 3, add = TRUE)
-# plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep < 0.5 & Shasta_Streams$mdep >= 0.25,]),
-#      col = 'green', lwd = 3, add = TRUE)
-# plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep < 0.75 & Shasta_Streams$mdep >= 0.5,]),
-#      col = 'goldenrod', lwd = 3, add = TRUE)
-# plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep >= 0.75,]),
-#      col = 'red', lwd = 3, add = TRUE)
-# legend(x = 'bottomleft',
-#        lwd = c(3,NA,NA,NA,NA,NA,NA),
-#        pch = c(NA,19,15,15,15,15,15),
-#        pt.cex = c(NA,1.6,1.8,1.8,1.8,1.8,1.8),
-#        col = c('black','#A21','white','dodgerblue4','green','goldenrod','red'),
-#        legend = c('Shasta Groundwater Basin',
-#                   'Randomly Placed Wells',
-#                   '% Of Maximum Depletion Potential',
-#                   '< 25%',
-#                   '25 - 50%',
-#                   '50 - 75 %',
-#                   '> 75 %'))
+mdep <- c()
+for(i in 1:nrow(Shasta_Streams)){
+  mdep <- append(mdep,
+                 max(as.vector(unlist(dep[i,]))))
+}
+mdep <- mdep/max(mdep)
+Shasta_Streams$mdep <- mdep
 
+
+plot(st_geometry(Shasta_B118), lwd = 3)
+plot(st_geometry(random_wells), add = TRUE, pch = 19, col = '#A21')
+plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep < 0.25,]),
+     col = 'dodgerblue4', lwd = 3, add = TRUE)
+plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep < 0.5 & Shasta_Streams$mdep >= 0.25,]),
+     col = 'green', lwd = 3, add = TRUE)
+plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep < 0.75 & Shasta_Streams$mdep >= 0.5,]),
+     col = 'goldenrod', lwd = 3, add = TRUE)
+plot(st_geometry(Shasta_Streams[Shasta_Streams$mdep >= 0.75,]),
+     col = 'red', lwd = 3, add = TRUE)
+legend(x = 'bottomleft',
+       lwd = c(3,NA,NA,NA,NA,NA,NA),
+       pch = c(NA,19,15,15,15,15,15),
+       pt.cex = c(NA,1.6,1.8,1.8,1.8,1.8,1.8),
+       col = c('black','#A21','white','dodgerblue4','green','goldenrod','red'),
+       legend = c('Shasta Groundwater Basin',
+                  'Randomly Placed Wells',
+                  '% Of Maximum Depletion Potential',
+                  '< 25%',
+                  '25 - 50%',
+                  '50 - 75 %',
+                  '> 75 %'))
 ```
