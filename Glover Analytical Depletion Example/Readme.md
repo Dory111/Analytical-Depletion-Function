@@ -122,8 +122,8 @@ conclusion is corroborated by figure 4 of Zipper et al. (2019). <br/>
 For the depletion apportionment criteria here we will use inverse
 distance. This is defined by the following equation:<br/>
 $$\Large f_{(r,w)} = \frac{\frac{1}{d_{(r,w)}^W}}{\sum_{j=1,n} \frac{1}{d_{(r_{j},w)}^W}}$$
-    Where:<br/>         $f_{(r,w)} [-]=$ the fraction of the depletion
-potential from well ‘w’ assigned to reach ‘r’<br/>
+<br/>     Where:<br/>         $f_{(r,w)} [-]=$ the fraction of the
+depletion potential from well ‘w’ assigned to reach ‘r’<br/>
         $d_{(r,w)} [L]=$ the distance of well ‘w’ to reach ‘r’<br/>
         $W =[-]$ the power of the equation (1 for inverse distance, 2
 for inverse distance squared)<br/>
@@ -155,16 +155,16 @@ derived above.
 
 $$\Large Q_{(r,w)} = Q_{w}*\text{erfc} \LARGE (\Large\sqrt{\frac{Sd_{(r,w)}^2}{4Tt}}\LARGE) \Large * f_{(r,w)}$$
 
-    Where:<br/>         $Q_{(r,w)} [\frac{L^3}{T}]=$ the cumulative
-depletion experienced by reach r as a result of well w<br/>
-        $Q_{w} [\frac{L^3}{T}]=$ the pumping rate of well w<br/>
-        $\text{erfc} [-]=$ the complimentary error function, as the
-value inside approaches 0 it will return 1<br/>
-        $S [\frac{L}{L}]=$ the storativity of the aquifer<br/>
-        $d_{(r,w)}^2 [L]=$ the distance between the reach and the well
-squared<br/>         $T [\frac{L^2}{T}]=$ the transmissivity of the
+<br/>     Where:<br/>          $Q_{(r,w)} [\frac{L^3}{T}]=$ the
+cumulative depletion experienced by reach r as a result of well w<br/>
+         $Q_{w} [\frac{L^3}{T}]=$ the pumping rate of well w<br/>
+         $\text{erfc} [-]=$ the complimentary error function, as the
+value inside approaches 0 it will return 1<br/>         
+$S [\frac{L}{L}]=$ the storativity of the aquifer<br/>         
+$d_{(r,w)}^2 [L]=$ the distance between the reach and the well
+squared<br/>          $T [\frac{L^2}{T}]=$ the transmissivity of the
 aquifer, described also as the thickness of the aquifer multiplied by
-its conductivity $(bK)$<br/>         $t [T]=$ the time at which the
+its conductivity $(bK)$ <br/>          $t [T]=$ the time at which the
 equation is to be evaluated<br/>
 
 <font size = '4'>**Important**</font><br/> While technically any units
@@ -250,17 +250,17 @@ properties.
     ## 138:   POINT (-189803.1 397138) 0.08639017  51.70103
 
 ``` r
-calculate_stream_depletions(streams = Shasta_Streams,
-                            wells = random_wells,
-                            pumping = pumping,
-                            influence_radius = influence_radius, # influence radius calculated above
-                            proximity_criteria = 'local area',
-                            apportionment_criteria = 'inverse distance',
-                            analytical_model = 'glover',
-                            data_out_dir = file.path(getwd(),'Output'),
-                            diag_out_dir = file.path(getwd(),'Output'),
-                            stor_coef_key = 'Stor', # where to find storage coef in well set
-                            well_transmissivity_key = 'Tr') # where to find transmissivity in well set
+# calculate_stream_depletions(streams = Shasta_Streams,
+#                             wells = random_wells,
+#                             pumping = pumping,
+#                             influence_radius = influence_radius, # influence radius calculated above
+#                             proximity_criteria = 'local area',
+#                             apportionment_criteria = 'inverse distance',
+#                             analytical_model = 'glover',
+#                             data_out_dir = file.path(getwd(),'Output'),
+#                             diag_out_dir = file.path(getwd(),'Output'),
+#                             stor_coef_key = 'Stor', # where to find storage coef in well set
+#                             well_transmissivity_key = 'Tr') # where to find transmissivity in well set
 ```
 
 <br/> <br/> <br/> <br/> <br/> <br/>
@@ -272,7 +272,6 @@ intermittent pumping effected depletions.<br/> <br/> Of note is that
 when pumping is at 0 depletions are still accumulating from pumping,
 indicating both a delayed response (as expected) from pumping and that
 the break from pumping was not long enough to reduce depletions.<br/>
-![](Readme_files/figure-gfm/finalexampleplot-1.png)<!-- -->
 
 <br/> <br/> <br/> As aquifer properties are assigned randomly, we also
 expect a random assortment in the spatial variability of our depletions,
@@ -284,6 +283,5 @@ However, the important thing here is demonstrating that the method
 works, as again the numbers are randomly assigned and come with no
 context as to whether the absolute volume of depletions are large in
 relation to the flows in the rivers.<br/> <br/> Here streams are colored
-by how much of the global maximum (324\[$\frac{L^3}{T}$\]) depletions
+by how much of the global maximum (324 \[ $\frac{L^3}{T}$ \]) depletions
 they experienced .
-![](Readme_files/figure-gfm/finalexampleplot2-1.png)<!-- -->
