@@ -4161,10 +4161,8 @@ calculate_stream_depletions <- function(streams,
   }
   
   if(str_to_title(analytical_model) == 'Glover' &
-     (is.null(well_stor_coef_key) == TRUE |
-     !well_stor_coef_key %in% colnames(wells)) |
-     (is.null(well_transmissivity_key) == TRUE |
-      !well_transmissivity_key %in% colnames(wells))){
+     is.null(well_stor_coef_key) == TRUE  |
+     is.null(well_transmissivity_key) == TRUE){
     #-------------------------------------------------------------------------------
     writeLines(text = sprintf('%s',
                               paste0('Identifying column for storage coefficient or transmissivity in ',
@@ -4187,6 +4185,79 @@ calculate_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
   }
   
+  
+  if(!well_stor_coef_key %in% colnames(wells) |
+     !well_transmissivity_key %in% colnames(wells)){
+    #-------------------------------------------------------------------------------
+    writeLines(text = sprintf('%s',
+                              paste0('Identifying column for storage coefficient or transmissivity in ',
+                                     'all models',
+                                     ' required but not present in well set')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              'Exiting program ...'),
+               con = log_file)
+    close(log_file)
+    #-------------------------------------------------------------------------------
+    
+    
+    #-------------------------------------------------------------------------------
+    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+                'Identifying column for storage coefficient or transmissivity in ',
+                'all models',
+                ' required but not present in well set\n',
+                'exiting program ...'))
+    #-------------------------------------------------------------------------------
+  }
+  
+  
+  if(is.null(model_grid) == FALSE){
+    if(is.null(well_layer_key) == TRUE){
+      #-------------------------------------------------------------------------------
+      writeLines(text = sprintf('%s',
+                                paste0('Identifying column for layer required ',
+                                       'when model grid passed as argument',
+                                       ' but not present in well set')),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                'Exiting program ...'),
+                 con = log_file)
+      close(log_file)
+      #-------------------------------------------------------------------------------
+      
+      
+      #-------------------------------------------------------------------------------
+      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+                  'Identifying column for layer required ',
+                  'when model grid passed as argument',
+                  ' but not present in well set\n',
+                  'exiting program ...'))
+      #-------------------------------------------------------------------------------
+    } else if(!well_layer_key %in% colnames(wells)){
+      #-------------------------------------------------------------------------------
+      writeLines(text = sprintf('%s',
+                                paste0('Identifying column for layer required ',
+                                       'when model grid passed as argument',
+                                       ' but not present in well set')),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                'Exiting program ...'),
+                 con = log_file)
+      close(log_file)
+      #-------------------------------------------------------------------------------
+      
+      
+      #-------------------------------------------------------------------------------
+      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+                  'Identifying column for layer required ',
+                  'when model grid passed as argument',
+                  ' but not present in well set\n',
+                  'exiting program ...'))
+      #-------------------------------------------------------------------------------
+    }
+  }
+  
+
   
   if(str_to_title(analytical_model) == 'Hunt' &
      is.null(lambda_key) == TRUE){
