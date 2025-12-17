@@ -63,7 +63,7 @@ is small relative to the aquifer width.<br/> <br/> This solution is
 identical to the Hantush (1965) solution in the special case that
 $\lambda = 2\frac{T}{L}$ , though it should be noted that this will run
 slower than the Hunt (1999) solution in this case due to higher
-precision numbers being needed.
+precision numbers being needed. <br/> <br/> <br/> <br/>
 
 # Variable documentation
 
