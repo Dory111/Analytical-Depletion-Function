@@ -1303,7 +1303,7 @@ calculate_stream_depletions <- function(streams,
             # selecting correct gridcells
             grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
             well_layers <- as.vector(unlist(st_drop_geometry(well[,well_layer_key])))
-            gr <- model_grid[grid_layers == well_layers, ]
+            gr <- model_grid[grid_layers %in% well_layers, ]
             #-------------------------------------------------------------------------------
             
             #-------------------------------------------------------------------------------
@@ -1560,7 +1560,11 @@ calculate_stream_depletions <- function(streams,
           #-------------------------------------------------------------------------------
           # get areas
           well_voronoi_area <- as.numeric(st_area(wells_intersection))
-          closest_voronoi_intersection <- st_intersection(closest_voronoi, st_geometry(wells_intersection))
+          closest_voronoi_intersection <- st_intersection(st_geometry(closest_voronoi),
+                                                          st_geometry(wells_intersection))
+          closest_voronoi_intersection <- st_sf(closest_voronoi_intersection)
+          st_geometry(closest_voronoi_intersection) <- 'geometry'
+          closest_voronoi_intersection$key <- closest_voronoi$key
           voronoi_intersected_areas <- as.numeric(st_area(closest_voronoi_intersection))
           #-------------------------------------------------------------------------------
           
@@ -1593,7 +1597,7 @@ calculate_stream_depletions <- function(streams,
               # selecting correct gridcells
               grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
               well_layers <- as.vector(unlist(st_drop_geometry(wells[i,well_layer_key])))
-              gr <- model_grid[grid_layers == well_layers, ]
+              gr <- model_grid[grid_layers %in% well_layers, ]
               #-------------------------------------------------------------------------------
               
               #-------------------------------------------------------------------------------
@@ -1604,10 +1608,24 @@ calculate_stream_depletions <- function(streams,
                 # which becomes NaN, which is then caught and set to 0, representing no flow
                 TR <- list()
                 for(j in 1:nrow(closest_voronoi_intersection)){
-                  tr <- st_intersection(gr,
+                  #-------------------------------------------------------------------------------
+                  # making st_intersection and assigning TR without generating attribute warning
+                  tr <- st_intersection(st_geometry(gr),
                                         closest_voronoi_intersection$geometry[j])
+                  tr <- st_sf(tr)
+                  st_geometry(tr) <- 'geometry'
+                  a <- which(lengths(st_intersects(gr,tr)) != 0)
+                  tr[,grid_transmissivity_key] <- as.vector(unlist(st_drop_geometry(gr[a,grid_transmissivity_key])))
+                  #-------------------------------------------------------------------------------
+                  
+                  #-------------------------------------------------------------------------------
+                  # ensure there are no overlapping geometries
+                  # commented out for now while deciding what to do with multiperf wells
+                  # where gridcells of separate layers are perfectly overlapping
+                  # tr <- tr[!duplicated(tr$geometry), ]
                   tr <- as.vector(unlist(st_drop_geometry(tr[,grid_transmissivity_key])))
                   TR[[j]] <- mean(tr, na.rm = T)
+                  #-------------------------------------------------------------------------------
                 }
                 TR <- as.vector(unlist(TR))
                 TR[is.nan(TR) == TRUE] <- 0
@@ -1920,7 +1938,7 @@ calculate_stream_depletions <- function(streams,
           # selecting correct gridcells
           grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
           well_layers <- as.vector(unlist(st_drop_geometry(well[,well_layer_key])))
-          gr <- model_grid[grid_layers == well_layers, ]
+          gr <- model_grid[grid_layers %in% well_layers, ]
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
