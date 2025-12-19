@@ -15,8 +15,10 @@
 map_stream_depletions <- function(streams,
                                   streams_are_points = FALSE,
                                   stream_id_key = NULL,
-                                  wells,
-                                  wells_id_key = NULL,
+                                  well_grid_ext = NULL,
+                                  well_grid_cellsize = NULL,
+                                  wells = NULL,
+                                  wells_crs = NULL,
                                   pumping,
                                   model_grid = NULL,
                                   grid_layer_key = 'lay',
@@ -1190,7 +1192,7 @@ map_stream_depletions <- function(streams,
   #===========================================================================================
   # convert everything to the projection of the wells
   #===========================================================================================
-  ensure_projections <- function(wells,
+  ensure_projections <- function(projection_object,
                                  geometry_list)
   {
     new_list <- list()
@@ -3699,6 +3701,97 @@ map_stream_depletions <- function(streams,
                con = log_file)
     #-------------------------------------------------------------------------------
     
+    #-------------------------------------------------------------------------------
+    # deciding whether wells need to be made on a grid or whether they were passed
+    if(is.null(wells) == FALSE){
+      #-------------------------------------------------------------------------------
+      proj_output <- ensure_projections(projection_object = streams,
+                                        geometry_list = list(wells))
+      wells <- proj_output[[1]]
+      
+      wells_id_key <- 'ID'
+      wells$ID <- c(1:nrow(wells))
+      #-------------------------------------------------------------------------------
+    } 
+    #-------------------------------------------------------------------------------
+    
+    
+    #-------------------------------------------------------------------------------
+    # if wells were not passed as an argument make a consistent grid out of them
+    if(is.null(wells) == TRUE){
+      
+      #-------------------------------------------------------------------------------
+      # log message
+      if(is.null(wells_crs) == TRUE){
+        #-------------------------------------------------------------------------------
+        writeLines(text = sprintf('%s',
+                                  paste0('No CRS object specified for grid of wells defined by passed extent object.')),
+                   con = log_file)
+        writeLines(text = sprintf('%s',
+                                  paste0('Wells will inherit CRS of streams object.')),
+                   con = log_file)
+        #-------------------------------------------------------------------------------
+      }
+      #-------------------------------------------------------------------------------
+      
+      #-------------------------------------------------------------------------------
+      # Null dataframe to map onto
+      df <- as.data.frame(matrix(nrow = 1, ncol = 3))
+      colnames(df) <- c('Buff','Lon','Lat')
+      df$Lon[1] <- -119
+      df$Lat[1] <- 42
+      if(is.null(wells_crs) == TRUE){
+        df <- st_as_sf(df,
+                       coords = c('Lon','Lat'),
+                       crs = st_crs(streams))
+      } else {
+        df <- st_as_sf(df,
+                       coords = c('Lon','Lat'),
+                       crs = wells_crs)
+      }
+      #-------------------------------------------------------------------------------
+      
+      #-------------------------------------------------------------------------------
+      x_coords <- c(well_grid_ext[1],well_grid_ext[1],well_grid_ext[2],well_grid_ext[2],well_grid_ext[1])
+      y_coords <- c(well_grid_ext[3],well_grid_ext[4],well_grid_ext[4],well_grid_ext[3],well_grid_ext[3])
+      df$geometry[1] <- st_polygon(list(cbind(x_coords,
+                                              y_coords)))
+      #-------------------------------------------------------------------------------
+      
+      #-------------------------------------------------------------------------------
+      # making wells getting grid dimensions
+      wells <- st_make_grid(df,
+                            cellsize = well_grid_cellsize)
+      wells <- st_centroid(wells)
+      wells <- st_sf(wells)
+      coords <- st_coordinates(wells)
+      ncol_well_grid <- rle(coords[,2])$lengths[1]
+      nrow_well_grid <- nrow(wells)/ncol_well_grid
+      #-------------------------------------------------------------------------------
+      
+      
+      #-------------------------------------------------------------------------------
+      # log message
+      writeLines(text = sprintf('%s',
+                                paste0('Number of rows in well grid = ', nrow_well_grid)),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                paste0('Number of columns in well grid = ', ncol_well_grid)),
+                 con = log_file)
+      #-------------------------------------------------------------------------------
+      
+
+      #-------------------------------------------------------------------------------
+      proj_output <- ensure_projections(projection_object = streams,
+                                        geometry_list = list(wells))
+      wells <- proj_output[[1]]
+      wells_id_key <- 'ID'
+      wells$ID <- c(1:nrow(wells))
+      #-------------------------------------------------------------------------------
+    }
+    #-------------------------------------------------------------------------------
+    
+    
     
     
     
@@ -3837,11 +3930,12 @@ map_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # ensure everything is in the same projection
-      proj_output <- ensure_projections(wells = wells,
-                                        geometry_list = list(subwatersheds,
-                                                             stream_points_geometry))
-      subwatersheds <- proj_output[[1]]
-      stream_points_geometry <- proj_output[[2]]
+        proj_output <- ensure_projections(projection_object = streams,
+                                          geometry_list = list(subwatersheds,
+                                                               stream_points_geometry))
+        subwatersheds <- proj_output[[1]]
+        stream_points_geometry <- proj_output[[2]]
+      
       rm(proj_output)
       #-------------------------------------------------------------------------------
       
@@ -3861,7 +3955,7 @@ map_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # ensure everything is in the same projection
-      proj_output <- ensure_projections(wells = wells,
+      proj_output <- ensure_projections(projection_object = wells,
                                         geometry_list = list(subwatersheds,
                                                              stream_points_geometry))
       subwatersheds <- proj_output[[1]]
@@ -3888,7 +3982,7 @@ map_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # ensure everything is in the same projection
-      proj_output <- ensure_projections(wells = wells,
+      proj_output <- ensure_projections(projection_object = streams,
                                         geometry_list = list(stream_points_geometry))
       stream_points_geometry <- proj_output[[1]]
       rm(proj_output)
@@ -3909,7 +4003,7 @@ map_stream_depletions <- function(streams,
     if(str_to_title(proximity_criteria) == 'Whole Domain'){
       #-------------------------------------------------------------------------------
       # ensure everything is in the same projection
-      proj_output <- ensure_projections(wells = wells,
+      proj_output <- ensure_projections(projection_object = streams,
                                         geometry_list = list(stream_points_geometry))
       stream_points_geometry <- proj_output[[1]]
       rm(proj_output)
@@ -4083,14 +4177,14 @@ map_stream_depletions <- function(streams,
   #===========================================================================================
   # Apportions depletions based on given criteria
   #===========================================================================================
-  calculate_stream_depletion_per_reach <- function(closest_points_per_segment = closest_points_per_segment,
-                                                   stream_points_geometry = stream_points_geometry,
-                                                   wells = wells,
-                                                   well_transmissivity_key = well_transmissivity_key,
-                                                   well_stor_coef_key = well_stor_coef_key,
-                                                   lambda_key = lambda_key,
-                                                   leakance_key = leakance_key,
-                                                   analytical_model = analytical_model){
+  calculate_stream_depletion_per_well <- function(closest_points_per_segment = closest_points_per_segment,
+                                                  stream_points_geometry = stream_points_geometry,
+                                                  wells = wells,
+                                                  well_transmissivity_key = well_transmissivity_key,
+                                                  well_stor_coef_key = well_stor_coef_key,
+                                                  lambda_key = lambda_key,
+                                                  leakance_key = leakance_key,
+                                                  analytical_model = analytical_model){
     #-------------------------------------------------------------------------------
     # write status to log
     writeLines(text = sprintf('%s %s',
@@ -4254,7 +4348,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'proximity criteria required subwatersheds (Adjacent | Adjacent+Expanding)\n',
                 'but none supplied\n',
                 'exiting program ...'))
@@ -4281,7 +4375,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'proximity criteria required influence radius (Local Area | Expanding | Adjacent+Expanding)\n',
                 'but none supplied\n',
                 'exiting program ...'))
@@ -4302,7 +4396,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'Identifying column for streams required to calculate impacted length',
                 'but none supplied\n',
                 'exiting program ...'))
@@ -4326,7 +4420,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'Identifying column for storage coefficient or transmissivity in ',
                 str_to_title(analytical_model),
                 ' model required but not present in well set\n',
@@ -4351,7 +4445,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'Identifying column for storage coefficient or transmissivity in ',
                 'all models',
                 ' required but not present in well set\n',
@@ -4376,7 +4470,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Identifying column for layer required ',
                   'when model grid passed as argument',
                   ' but not present in well set\n',
@@ -4397,7 +4491,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Identifying column for layer required ',
                   'when model grid passed as argument',
                   ' but not present in well set\n',
@@ -4424,7 +4518,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'Identifying column for lambda in ',
                 str_to_title(analytical_model),
                 ' model required but not present in streams set\n',
@@ -4452,7 +4546,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Identifying column for lambda in ',
                   str_to_title(analytical_model),
                   ' model required but not present in streams set\n',
@@ -4478,7 +4572,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'Identifying column for leakance in ',
                 str_to_title(analytical_model),
                 ' model required but not present in streams set\n',
@@ -4504,7 +4598,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Identifying column for leakance in ',
                   str_to_title(analytical_model),
                   ' model required but not present in streams set\n',
@@ -4514,8 +4608,62 @@ map_stream_depletions <- function(streams,
   }
   
   
+  if(is.null(wells) == TRUE &
+     is.null(well_grid_ext) == TRUE){
+    #-------------------------------------------------------------------------------
+    writeLines(text = sprintf('%s',
+                              paste0('Either explicitly defined wells or an extent with which to make')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              paste0('a grid of wells must be passed to the program.')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              paste0('Please see documentation for the correct arguments.')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              'Exiting program ...'),
+               con = log_file)
+    close(log_file)
+    #-------------------------------------------------------------------------------
+    
+    
+    #-------------------------------------------------------------------------------
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
+                'Either explicitly defined wells or an extent with which to make\n',
+                'a grid of wells must be passed to the program.\n',
+                'exiting program ...'))
+    #-------------------------------------------------------------------------------
+    
+  }
+  
+  if(is.null(well_grid_ext) == FALSE &
+     is.null(well_grid_cellsize) == TRUE){
+    #-------------------------------------------------------------------------------
+    writeLines(text = sprintf('%s',
+                              paste0('When specifying a grid of wells to be used a cellsize must be passed.')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              paste0('Please see documentation for details.')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              'Exiting program ...'),
+               con = log_file)
+    close(log_file)
+    #-------------------------------------------------------------------------------
+    
+    
+    #-------------------------------------------------------------------------------
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
+                'When specifying a grid of wells to be used a cellsize must be passed.\n',
+                'Please see documentation for details.\n',
+                'exiting program ...'))
+    #-------------------------------------------------------------------------------
+    
+  }
+  
+
   if(is.null(model_grid) == FALSE){
-    proj_output <- ensure_projections(wells = wells,
+    proj_output <- ensure_projections(projection_object = streams,
                                       geometry_list = list(model_grid))
     model_grid <- proj_output[[1]]
     
@@ -4537,7 +4685,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Identifiers paseed for storage coefficient,transmissivity, or layer\n',
                   'not found in model grid column names.\n',
                   'exiting program ...'))
@@ -4566,7 +4714,7 @@ map_stream_depletions <- function(streams,
     
     
     #-------------------------------------------------------------------------------
-    stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                 'Apportionment criteria of ',
                 apportionment_criteria,
                 ' selected but only one stream present\n',
@@ -4595,7 +4743,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Geologic apportionment selected but stream transmissivity key of \'',
                   stream_transmissivity_key,
                   '\' not present in stream set\n',
@@ -4623,7 +4771,7 @@ map_stream_depletions <- function(streams,
       
       
       #-------------------------------------------------------------------------------
-      stop(paste0('\ncalculate_stream_depletions.R encountered Error:    \n',
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
                   'Geologic apportionment selected but stream transmissivity key not given\n',
                   'exiting program ...'))
       #-------------------------------------------------------------------------------
@@ -4655,11 +4803,6 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # find impacted points by proximity criteria
-    if(is.null(wells_id_key) == TRUE){
-      wells_id_key <- 'ID'
-      wells$ID <- c(1:nrow(wells))
-    } else {}
-    
     if(is.null(stream_id_key) == TRUE){
       stream_id_key <- 'ID'
       streams$ID <- c(1:nrow(streams))
@@ -4895,14 +5038,14 @@ map_stream_depletions <- function(streams,
     # a volumetric or fractional approach
     # fractional gives number between 0 and 1, where 1 is depletion is equal to
     # the pumping rate
-    output <- calculate_stream_depletion_per_reach(closest_points_per_segment = closest_points_per_segment,
-                                                   stream_points_geometry = stream_points_geometry,
-                                                   wells = wells,
-                                                   well_transmissivity_key = well_transmissivity_key,
-                                                   well_stor_coef_key = well_stor_coef_key,
-                                                   lambda_key = lambda_key,
-                                                   leakance_key = leakance_key,
-                                                   analytical_model = analytical_model)
+    output <- calculate_stream_depletion_per_well(closest_points_per_segment = closest_points_per_segment,
+                                                  stream_points_geometry = stream_points_geometry,
+                                                  wells = wells,
+                                                  well_transmissivity_key = well_transmissivity_key,
+                                                  well_stor_coef_key = well_stor_coef_key,
+                                                  lambda_key = lambda_key,
+                                                  leakance_key = leakance_key,
+                                                  analytical_model = analytical_model)
     depletions_by_reach <- output[[1]]
     depletions_potential_by_reach <- output[[2]]
     pump_frac_by_reach <- output[[3]]
