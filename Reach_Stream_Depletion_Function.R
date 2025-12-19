@@ -1270,7 +1270,8 @@ calculate_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
         # if no model grid use information about aquifer at streams and wells
         if(is.null(model_grid) == TRUE){
-          TR_prime <- as.vector(unlist(st_drop_geometry(stream_points_geometry[closest_points_per_well,stream_transmissivity_key])))
+          TR_prime <- as.vector(unlist(st_drop_geometry(stream_points_geometry[closest_points_per_well,
+                                                                               stream_transmissivity_key])))
           
           TR <- as.vector(unlist(st_drop_geometry(well[,well_transmissivity_key])))
           
