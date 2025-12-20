@@ -3327,6 +3327,7 @@ map_stream_depletions <- function(streams,
     # deciding whether wells need to be made on a grid or whether they were passed
     if(is.null(wells) == FALSE){
       #-------------------------------------------------------------------------------
+      wells_initially_null <- FALSE
       proj_output <- ensure_projections(projection_object = streams,
                                         geometry_list = list(wells))
       wells <- proj_output[[1]]
@@ -3341,6 +3342,7 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
     # if wells were not passed as an argument make a consistent grid out of them
     if(is.null(wells) == TRUE){
+      wells_initially_null <- TRUE
       #-------------------------------------------------------------------------------
       # log message
       if(is.null(well_crs) == TRUE){
@@ -3670,7 +3672,9 @@ map_stream_depletions <- function(streams,
     stream_points_geometry$Index <- c(1:nrow(stream_points_geometry))
     return(list(writeout[[1]],
                 writeout[[2]],
-                stream_points_geometry))
+                stream_points_geometry,
+                wells_initially_null,
+                wells))
     #-------------------------------------------------------------------------------
   }
   #-------------------------------------------------------------------------------
@@ -4422,6 +4426,8 @@ map_stream_depletions <- function(streams,
     impacted_points <- output[[1]]
     wells <- output[[2]]
     stream_points_geometry <- output[[3]]
+    wells_initially_null <- output[[4]]
+    well_grid <- output[[5]]
     #-------------------------------------------------------------------------------
 
     #-------------------------------------------------------------------------------
@@ -4442,6 +4448,13 @@ map_stream_depletions <- function(streams,
                        'stream_points.shp'),
              append = FALSE,
              quiet = TRUE)
+    if(wells_initially_null == TRUE){
+      st_write(well_grid,
+               file.path(data_out_dir,
+                         'well_grid.shp'),
+               append = FALSE,
+               quiet = TRUE)
+    }
     #-------------------------------------------------------------------------------
     
     #-------------------------------------------------------------------------------
@@ -4636,7 +4649,7 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
     # user message
     if(suppress_console_messages == FALSE){
-      cat('\nCalculating depletions per reach: Step (3/3)')
+      cat('\nCalculating depletions per well: Step (3/3)')
     }
     #-------------------------------------------------------------------------------
     
