@@ -19,7 +19,7 @@ map_stream_depletions <- function(streams,
                                   well_grid_cellsize = NULL,
                                   well_layer = NULL,
                                   wells = NULL,
-                                  wells_crs = NULL,
+                                  well_crs = NULL,
                                   pumping,
                                   model_grid = NULL,
                                   grid_layer_key = 'lay',
@@ -1644,7 +1644,19 @@ map_stream_depletions <- function(streams,
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
-          # get areas
+          # which thiessen polygon does the well intersect
+          wells_intersection <- st_intersects(closest_voronoi_plus_well, wells[i, ])
+          rm <- which(lengths(wells_intersection) == 0)
+          if(length(rm) > 0){
+            wells_intersection <- c(1:length(wells_intersection))[-c(rm)]
+          } else {
+            wells_intersection <- c(1:length(wells_intersection))
+          }
+          wells_intersection <- closest_voronoi_plus_well[wells_intersection, ]
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # get areas of well thiessen and create intersection
           well_voronoi_area <- as.numeric(st_area(wells_intersection))
           closest_voronoi_intersection <- st_intersection(st_geometry(closest_voronoi),
                                                           st_geometry(wells_intersection))
@@ -1665,6 +1677,7 @@ map_stream_depletions <- function(streams,
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
+          # get areas of intersected thiessen
           closest_voronoi_intersection$key <- closest_voronoi$key[keys_indices]
           voronoi_intersected_areas <- as.numeric(st_area(closest_voronoi_intersection))
           #-------------------------------------------------------------------------------
@@ -2466,7 +2479,7 @@ map_stream_depletions <- function(streams,
     if(is.null(custom_sdf_time) == TRUE){
       custom_sdf_per_well <- NULL
     } else{
-      custom_sdf_per_well <- cbind(custom_sdf_per_well)
+      custom_sdf_per_well <- do.call(cbind, custom_sdf_per_well)
     }
     #-------------------------------------------------------------------------------
     
@@ -2856,7 +2869,7 @@ map_stream_depletions <- function(streams,
     if(is.null(custom_sdf_time) == TRUE){
       custom_sdf_per_well <- NULL
     } else{
-      custom_sdf_per_well <- cbind(custom_sdf_per_well)
+      custom_sdf_per_well <- do.call(cbind, custom_sdf_per_well)
     }
     #-------------------------------------------------------------------------------
     
@@ -3250,7 +3263,7 @@ map_stream_depletions <- function(streams,
     if(is.null(custom_sdf_time) == TRUE){
       custom_sdf_per_well <- NULL
     } else{
-      custom_sdf_per_well <- cbind(custom_sdf_per_well)
+      custom_sdf_per_well <- do.call(cbind, custom_sdf_per_well)
     }
     #-------------------------------------------------------------------------------
     
@@ -3332,7 +3345,7 @@ map_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # log message
-      if(is.null(wells_crs) == TRUE){
+      if(is.null(well_crs) == TRUE){
         #-------------------------------------------------------------------------------
         writeLines(text = sprintf('%s',
                                   paste0('No CRS object specified for grid of wells defined by passed extent object.')),
@@ -3350,14 +3363,14 @@ map_stream_depletions <- function(streams,
       colnames(df) <- c('Buff','Lon','Lat')
       df$Lon[1] <- -119
       df$Lat[1] <- 42
-      if(is.null(wells_crs) == TRUE){
+      if(is.null(well_crs) == TRUE){
         df <- st_as_sf(df,
                        coords = c('Lon','Lat'),
                        crs = st_crs(streams))
       } else {
         df <- st_as_sf(df,
                        coords = c('Lon','Lat'),
-                       crs = wells_crs)
+                       crs = well_crs)
       }
       #-------------------------------------------------------------------------------
       
@@ -3853,43 +3866,20 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # format output
-    depletions_per_reach <- cbind(as.vector(unlist(st_drop_geometry(streams[,stream_id_key]))),
-                                  output[[1]])
-    depletions_per_reach <- as.data.frame(depletions_per_reach)
-    colnames(depletions_per_reach) <- c('RN', paste0('T',1:(ncol(depletions_per_reach)-1)))
-    
-    
-    
-    depletions_potential_per_reach <- cbind(as.vector(unlist(st_drop_geometry(streams[,stream_id_key]))),
-                                            output[[2]])
-    depletions_potential_per_reach <- as.data.frame(depletions_potential_per_reach)
-    colnames(depletions_potential_per_reach) <- c('RN', paste0('T',1:(ncol(depletions_potential_per_reach)-1)))
-    
-    
-    
-    pump_frac_per_reach <- cbind(as.vector(unlist(st_drop_geometry(streams[,stream_id_key]))),
-                                  output[[3]])
-    pump_frac_per_reach <- as.data.frame(pump_frac_per_reach)
-    colnames(pump_frac_per_reach) <- c('RN', paste0('T',1:(ncol(pump_frac_per_reach)-1)))
-    
-    
-    
-    jenk_sdf_per_reach <- cbind(as.vector(unlist(st_drop_geometry(streams[,stream_id_key]))),
-                                 output[[4]])
-    jenk_sdf_per_reach <- as.data.frame(jenk_sdf_per_reach)
-    colnames(jenk_sdf_per_reach) <- c('RN', 'T')
+    depletions_potential_per_well <- output[[1]]
+    depletions_potential_per_well <- as.data.frame(depletions_potential_per_well)
+    colnames(depletions_potential_per_well) <- c(paste0('WN',1:(ncol(depletions_potential_per_well))))
     
     
     if(is.null(custom_sdf_time) == FALSE){
-      custom_sdf_per_reach <- cbind(as.vector(unlist(st_drop_geometry(streams[,stream_id_key]))),
-                                    output[[5]])
-      custom_sdf_per_reach <- as.data.frame(custom_sdf_per_reach)
-      colnames(custom_sdf_per_reach) <- c('RN', 'T')
+      custom_sdf_per_well <- output[[2]]
+      
+      custom_sdf_per_well <- as.data.frame(custom_sdf_per_well)
+      colnames(custom_sdf_per_well) <- c(paste0('WN',1:(ncol(custom_sdf_per_well))))
     } else {
-      custom_sdf_per_reach <- output[[5]]
+      custom_sdf_per_well <- output[[2]]
     }
     #-------------------------------------------------------------------------------
-    
     
     #-------------------------------------------------------------------------------
     # log message
@@ -3901,11 +3891,8 @@ map_stream_depletions <- function(streams,
                con = log_file)
     #-------------------------------------------------------------------------------
     
-    return(list(depletions_per_reach,
-                depletions_potential_per_reach,
-                pump_frac_per_reach,
-                jenk_sdf_per_reach,
-                custom_sdf_per_reach))
+    return(list(depletions_potential_per_well,
+                custom_sdf_per_well))
   }
   #-------------------------------------------------------------------------------
   
@@ -4671,20 +4658,20 @@ map_stream_depletions <- function(streams,
                                                   leakance_key = leakance_key,
                                                   analytical_model = analytical_model)
     depletions_potential_by_well <- output[[1]]
-    custom_sdf_by_reach <- output[[2]]
+    custom_sdf_by_well <- output[[2]]
     #-------------------------------------------------------------------------------
 
     
     #-------------------------------------------------------------------------------
-    write.csv(depletions_by_reach,
+    write.csv(depletions_potential_by_well ,
               file.path(data_out_dir,
                         paste0('fractional_depletions_by_well.csv')),
               row.names = FALSE)
 
     if(is.null(custom_sdf_time) == FALSE){
-      write.csv(custom_sdf_by_reach,
+      write.csv(custom_sdf_by_well,
                 file.path(data_out_dir,
-                          paste0('custom_sdf_by_reach.csv')),
+                          paste0('custom_sdf_by_well.csv')),
                 row.names = FALSE)
     }
     #-------------------------------------------------------------------------------
