@@ -17,6 +17,7 @@ map_stream_depletions <- function(streams,
                                   stream_id_key = NULL,
                                   well_grid_ext = NULL,
                                   well_grid_cellsize = NULL,
+                                  well_layer = NULL,
                                   wells = NULL,
                                   wells_crs = NULL,
                                   pumping,
@@ -1198,7 +1199,7 @@ map_stream_depletions <- function(streams,
     new_list <- list()
     for(i in 1:length(geometry_list)){
       new_list[[i]] <- st_transform(geometry_list[[i]],
-                                    st_crs(wells))
+                                    st_crs(projection_object))
     }
     return(new_list)
   }
@@ -1649,7 +1650,22 @@ map_stream_depletions <- function(streams,
                                                           st_geometry(wells_intersection))
           closest_voronoi_intersection <- st_sf(closest_voronoi_intersection)
           st_geometry(closest_voronoi_intersection) <- 'geometry'
-          closest_voronoi_intersection$key <- closest_voronoi$key
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # which keys to assign
+          keys_indices <- st_intersects(closest_voronoi,
+                                        wells_intersection)
+          rm <- which(lengths(keys_indices) == 0)
+          if(length(rm) > 0){
+            keys_indices <- c(1:length(keys_indices))[-c(rm)]
+          } else {
+            keys_indices <- c(1:length(keys_indices))
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          closest_voronoi_intersection$key <- closest_voronoi$key[keys_indices]
           voronoi_intersected_areas <- as.numeric(st_area(closest_voronoi_intersection))
           #-------------------------------------------------------------------------------
           
@@ -2338,6 +2354,8 @@ map_stream_depletions <- function(streams,
             gr <- gr[grid_inds, ]
             transmissivity <- mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
             stor_coef <- mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+            transmissivities[[counter]] <- transmissivity
+            storage_coefficients[[counter]] <- stor_coef
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
@@ -2373,12 +2391,12 @@ map_stream_depletions <- function(streams,
                                                     stor_coef = as.vector(unlist(storage_coefficients)),
                                                     transmissivity = as.vector(unlist(transmissivities)),
                                                     custom_sdf_time = custom_sdf_time)
-          custom_SDF_per_well[[i]] <- custom_SDF
+          custom_sdf_per_well[[i]] <- custom_SDF
         }
         # -------------------------------------------------------------------------------
       } else {
         #-------------------------------------------------------------------------------
-        depletions_potential_per_well[[i]] <- rep(0, ncol(pumping)) # reach has no depletions
+        depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
         
         if(is.null(custom_sdf_time) == FALSE){
           custom_sdf_per_well[[i]] <- NA
@@ -2387,29 +2405,17 @@ map_stream_depletions <- function(streams,
       }
     }
     #-------------------------------------------------------------------------------
-    
 
     
     #-------------------------------------------------------------------------------
     # stats
-    start_of_depletions <- lapply(depletions_per_reach, function(x){
-      rle(x)$lengths[1]
-    })
-    start_of_depletions <- unlist(start_of_depletions)
-    rm <- which(start_of_depletions == ncol(pumping))
-    if(length(rm) > 0){
-      start_of_depletions[-c(rm)] # if never started remove
-    } else {}
+    mean_sdf_of_depletions <- mean(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
+    median_sdf_of_depletions <- median(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
     
-    
-    
-    mean_start_of_depletions <- mean(start_of_depletions, na.rm = TRUE)
-    median_start_of_depletions <- median(start_of_depletions, na.rm = TRUE)
-    
-    final_depletions <- lapply(depletions_per_reach, function(x){
+    final_depletions <- lapply(depletions_potential_per_well, function(x){
       tail(x, 1)
     })
-    n_timesteps <- ncol(pumping)
+    n_timesteps <- tail(pumping,1)
     mean_final_depletions <- mean(unlist(final_depletions), na.rm = TRUE)
     median_final_depletions <- median(unlist(final_depletions), na.rm = TRUE)
     which_max_final_depletions <- which.max(unlist(final_depletions))
@@ -2424,10 +2430,10 @@ map_stream_depletions <- function(streams,
 
     
     writeLines(text = sprintf('%s %s',
-                              'Mean | Median start of stream depletions (timestep): ',
-                              paste(round(mean_start_of_depletions,2),
+                              paste0('Mean | Median time to custom SDF time (',custom_sdf_time,'): '),
+                              paste(round(mean_sdf_of_depletions,2),
                                     ' | ',
-                                    median_start_of_depletions)),
+                                    round(median_sdf_of_depletions,2),'[timesteps]')),
                con = log_file)
     
     
@@ -2445,13 +2451,11 @@ map_stream_depletions <- function(streams,
                               paste(round(max_final_depletions,4),
                                     'at timestep (t_final)',
                                     n_timesteps,
-                                    'for reach',
+                                    'for well at row',
                                     which_max_final_depletions)),
                con = log_file)
     #-------------------------------------------------------------------------------
     
-    
-
     #-------------------------------------------------------------------------------
     # output
     depletions_potential_per_well <- do.call(cbind, depletions_potential_per_well)
@@ -2459,25 +2463,16 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # output and stats 2
-    writeLines(text = sprintf('%s %s',
-                              paste('Mean | Median Jenkins SDF'),
-                              paste(round(mean(jenk_sdf_per_reach, na.rm = TRUE),4),
-                                    '|',
-                                    round(median(jenk_sdf_per_reach, na.rm = TRUE),4))),
-               con = log_file)
     if(is.null(custom_sdf_time) == TRUE){
-      custom_sdf_per_reach <- NULL
+      custom_sdf_per_well <- NULL
     } else{
-      custom_sdf_per_reach <- do.call(rbind, custom_sdf_per_reach)
-      writeLines(text = sprintf('%s %s',
-                                paste('Mean | Median Custom SDF',paste0('(',custom_sdf_time,')')),
-                                paste(round(mean(custom_sdf_per_reach, na.rm = TRUE),4),
-                                      '|',
-                                      round(median(custom_sdf_per_reach, na.rm = TRUE),4))),
-                 con = log_file)
+      custom_sdf_per_well <- cbind(custom_sdf_per_well)
     }
     #-------------------------------------------------------------------------------
-    return(list(depletions_potential_per_well))
+    
+    #-------------------------------------------------------------------------------
+    return(list(depletions_potential_per_well,
+                custom_sdf_per_well))
     #-------------------------------------------------------------------------------
   }
   #-------------------------------------------------------------------------------
@@ -2616,117 +2611,17 @@ map_stream_depletions <- function(streams,
       }
       #-------------------------------------------------------------------------------
       
-      
-      # EXPLANATION
-      # check comments on glover model
       #-------------------------------------------------------------------------------
-      start_pumping <- c(0:(length(QW)-1))
-      stop_pumping <- c(1:length(QW))
-      timesteps <- c(0:length(QW)) 
-      
-      
-      timestep_mat <- base::matrix(timesteps,
-                                   nrow = length(timesteps),
-                                   ncol = length(start_pumping))
-      starts_mat <- base::matrix(start_pumping,
-                                 nrow = length(timesteps),
-                                 ncol = length(start_pumping),
-                                 byrow = T)
-      stops_mat <- base::matrix(stop_pumping,
-                                nrow = length(timesteps),
-                                ncol = length(stop_pumping),
-                                byrow = T)
-      pumping_mat <- base::matrix(QW,
-                                  nrow = length(timesteps),
-                                  ncol = length(QW),
-                                  byrow = T)
+      fractional_vec <- equation(elapsed_time = QW,
+                                 distance = distance,
+                                 stor_coef = stor_coef,
+                                 transmissivity = transmissivity,
+                                 lambda = lambda)
       #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # calculate time since each pumping interval starts/stops, bounded at 0
-      starts_actual <- timestep_mat - starts_mat
-      starts_actual[starts_actual < 0] <- 0
-      
-      stops_actual <- timestep_mat - stops_mat
-      stops_actual[stops_actual < 0] <- 0
-      #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # vectorize for calculations
-      starts_actual_vec <- c(starts_actual)
-      stops_actual_vec <- c(stops_actual)
-      pumping_vec <- c(pumping_mat)
-      #-------------------------------------------------------------------------------
-      
-      
-      #-------------------------------------------------------------------------------
-      # vector of zeroes that will be filled with the function evaluations
-      depletions_vec <- rep(0, length(starts_actual_vec))
-      fractional_vec <- rep(0, length(starts_actual_vec))
-      #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # evaulate f(t) - f(t-1)
-      depletions_vec[starts_actual_vec > 0] <-
-        pumping_vec[starts_actual_vec > 0] *
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity,
-                  lambda = lambda) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity,
-                    lambda = lambda))
-      
-      depletions_mat <- matrix(depletions_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      depletions_mat <- depletions_mat[-c(1), ]
-      depletions <- base::rowSums(depletions_mat)
-      
-      
-      
-      
-      
-      
-      fractional_vec[starts_actual_vec > 0] <-
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity,
-                  lambda = lambda) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity,
-                    lambda = lambda))
-      
-      fractional_mat <- matrix(fractional_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      fractional_mat <- fractional_mat[-c(1), ]
-      fractions <- base::rowSums(fractional_mat)
-      #-------------------------------------------------------------------------------
-      
-      
-      #-------------------------------------------------------------------------------
-      # memory allocation
-      rm(list = c('depletions_vec','depletions_mat',
-                  'fractional_mat','fractional_vec',
-                  'starts_actual','stops_actual',
-                  'timestep_mat','starts_mat',
-                  'stops_mat','pumping_mat'))
-      #-------------------------------------------------------------------------------
-      
       
       #-------------------------------------------------------------------------------
       # sum and return
-      Jenk_SDF <- (distance*distance*stor_coef)/transmissivity
-      return(list(depletions,
-                  fractions,
-                  Jenk_SDF))
+      return(list(fractional_vec))
       #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
@@ -2734,42 +2629,30 @@ map_stream_depletions <- function(streams,
     
     
     
-    
-    
-    
-    
-    
-    
-    
     #-------------------------------------------------------------------------------
-    # for each reach calculate sum of all depletions
-    depletions_per_reach <- list()
-    pump_frac_per_reach <- list()
-    depletions_potential_per_reach <- list()
-    jenk_sdf_per_reach <- list()
-    custom_sdf_per_reach <- list()
-    for(i in 1:ncol(closest_points_per_segment)){
+    depletions_potential_per_well <- list()
+    custom_sdf_per_well <- list()
+    for(i in 1:nrow(wells)){
       #-------------------------------------------------------------------------------
       if(suppress_loading_bar == FALSE){
         #-------------------------------------------------------------------------------
         # user message
         loading_bar(iter = i,
-                    total = ncol(closest_points_per_segment),
+                    total = nrow(wells),
                     width = 50,
                     optional_text = '')
         #-------------------------------------------------------------------------------
       }
       #-------------------------------------------------------------------------------
       
-      
       #-------------------------------------------------------------------------------
       # what are the closest points to each well
-      points <- as.vector(unlist(closest_points_per_segment[, i]))
-      fracs <- as.vector(unlist(reach_impact_frac[ , i]))
+      points <- as.vector(unlist(closest_points_per_segment[i, ]))
+      fracs <- as.vector(unlist(reach_impact_frac[i, ]))
+      reach_indices <- c(1:length(points))
+      rm <- which(is.na(points))
       RN <- st_drop_geometry(stream_points_geometry[points, stream_id_key])
       RN <- as.vector(unlist(RN))
-      well_indices <- c(1:length(points))
-      rm <- which(is.na(points))
       #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
@@ -2778,18 +2661,18 @@ map_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
         # remove any non-relevant wells from the for loop
         if(length(rm) > 0){
-          well_indices <- well_indices[-c(rm)]
+          reach_indices <- reach_indices[-c(rm)]
         } else {}
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        depletions_per_well <- list()
-        pump_frac_per_well <- list()
-        depletions_potential_per_well <- list()
-        Jenk_SDF_per_well <- list()
-        custom_SDF_per_well <- list()
+        depletions_potential_per_well_per_reach <- list()
+        distances <- list()
+        transmissivities <- list()
+        lambdas <- list()
+        storage_coefficients <- list()
         counter <- 0
-        for(j in well_indices){
+        for(j in reach_indices){
           #-------------------------------------------------------------------------------
           # increment list counter
           counter <- counter + 1
@@ -2797,7 +2680,7 @@ map_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           # get distances
-          distance <- st_distance(wells[j, ],
+          distance <- st_distance(wells[i, ],
                                   stream_points_geometry[points[j], ])
           distance <- as.numeric(distance)
           distances[[counter]] <- distance
@@ -2808,13 +2691,15 @@ map_stream_depletions <- function(streams,
           # or if its going to be taken as an average of the aquifer properties along a line
           # between the well and the nearest stream
           if(is.null(model_grid) == TRUE){
-            transmissivity <- as.numeric(st_drop_geometry(wells[j,well_transmissivity_key]))
-            stor_coef <- as.numeric(st_drop_geometry(wells[j, well_stor_coef_key]))
+            transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
+            stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
+            transmissivities[[counter]] <- transmissivity
+            storage_coefficients[[counter]] <- stor_coef
           } else {
             #-------------------------------------------------------------------------------
             # make line between well and stream
-            m <- matrix(c(st_coordinates(wells[j, ])[,1],
-                          st_coordinates(wells[j, ])[,2],
+            m <- matrix(c(st_coordinates(wells[i, ])[,1],
+                          st_coordinates(wells[i, ])[,2],
                           st_coordinates(stream_points_geometry[points[j], ])[,1],
                           st_coordinates(stream_points_geometry[points[j], ])[,2]),
                         ncol = 2,
@@ -2827,7 +2712,7 @@ map_stream_depletions <- function(streams,
             # selecting correct gridcells
             grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
             well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
-            gr <- model_grid[grid_layers == well_layers[j], ]
+            gr <- model_grid[grid_layers == well_layers[i], ]
             #-------------------------------------------------------------------------------
             
             #-------------------------------------------------------------------------------
@@ -2845,6 +2730,8 @@ map_stream_depletions <- function(streams,
             gr <- gr[grid_inds, ]
             transmissivity <- mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
             stor_coef <- mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+            transmissivities[[counter]] <- transmissivity
+            storage_coefficients[[counter]] <- stor_coef
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
@@ -2854,13 +2741,9 @@ map_stream_depletions <- function(streams,
           # logic is that closer points will control more
           reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
           stream_inds <- reaches == RN[j]
-          all_distances <- st_distance(wells[j, ],
-                                       stream_points_geometry[stream_inds, ])
-          all_distances <- c(1:length(all_distances))[order(as.numeric(all_distances))]
           
           lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
-
-          lambda <- weighted_mean(x = lambda, w = all_distances, na.rm = T)
+          lambdas[[counter]] <- lambda
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
@@ -2869,94 +2752,45 @@ map_stream_depletions <- function(streams,
           Q_out <- hunt_stream_depletion_model(stor_coef = stor_coef,
                                                transmissivity = transmissivity,
                                                distance = distance,
-                                               QW = pumping[j, ],
+                                               QW = pumping,
                                                lambda = lambda)
-          Q_final <- Q_out[[1]]*fracs[j]
-          Q_fraction <- Q_out[[2]]
-          Jenk_SDF <- Q_out[[3]]
+          Q_fraction <- Q_out[[1]] * fracs[j]
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
-          # gradient descent example for future use
-          # if(is.null(custom_sdf_time) == FALSE){
-          #   custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
-          #                                             distance = distance,
-          #                                             stor_coef = stor_coef,
-          #                                             transmissivity = transmissivity,
-          #                                             lambda = lambda,
-          #                                             custom_sdf_time = custom_sdf_time)
-          #   custom_SDF_per_well[[counter]] <- custom_SDF
-          # }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          depletions_per_well[[counter]] <- Q_final
-          depletions_potential_per_well[[counter]] <- Q_fraction
-          Jenk_SDF_per_well[[counter]] <- Jenk_SDF
-          pump_frac_per_well[[counter]] <- pumping[j, ] * fracs[j]
+          depletions_potential_per_well_per_reach[[counter]] <- Q_fraction
           #-------------------------------------------------------------------------------
         }
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        depletions_total <- do.call(cbind, depletions_per_well)
-        pump_frac_per_well_total <- do.call(cbind, pump_frac_per_well)
-        depletions_potential_per_well_total <- do.call(cbind, depletions_potential_per_well)
-        Jenk_SDF_per_well_total <- do.call(rbind, Jenk_SDF_per_well)
+        depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
+        depletions_total[is.na(depletions_total) == TRUE] <- 0
+        depletions_total <- base::colSums(depletions_total)
+        depletions_potential_per_well[[i]] <- depletions_total
         #-------------------------------------------------------------------------------
         
         
+        # -------------------------------------------------------------------------------
+        if(is.null(custom_sdf_time) == FALSE){
+          custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
+                                                    distance = as.vector(unlist(distances)),
+                                                    stor_coef = as.vector(unlist(storage_coefficients)),
+                                                    transmissivity = as.vector(unlist(transmissivities)),
+                                                    lambda = as.vector(unlist(lambdas)),
+                                                    custom_sdf_time = custom_sdf_time)
+          custom_sdf_per_well[[i]] <- custom_SDF
+        }
+        # -------------------------------------------------------------------------------
+      } else {
         #-------------------------------------------------------------------------------
-        average_fractional_depletions <- calculate_depletion_potential(depletion_potential_criteria = depletion_potential_criteria,
-                                                                       depletions_potential_per_well_total = depletions_potential_per_well_total,
-                                                                       distances = distances,
-                                                                       fracs = fracs,
-                                                                       pumping = pumping)
-        average_Jenk_SDF <- calculate_average_sdf(sdf_averaging_criteria = sdf_averaging_criteria,
-                                                  sdf_vec = Jenk_SDF_per_well_total,
-                                                  fracs = fracs,
-                                                  pumping = pumping)
-        
-        jenk_sdf_per_reach[[i]] <- average_Jenk_SDF
-        depletions_potential_per_reach[[i]] <- average_fractional_depletions
-        depletions_per_reach[[i]] <- base::rowSums(depletions_total)
-        pump_frac_per_reach[[i]] <- base::rowSums(pump_frac_per_well_total)
+        depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
         
         if(is.null(custom_sdf_time) == FALSE){
-          
-          custom_sdf_per_reach[[i]] <- calculate_custom_sdf_time(average_fractional_depletions,
-                                                                 target = custom_sdf_time)
+          custom_sdf_per_well[[i]] <- NA
         }
         #-------------------------------------------------------------------------------
-        
-        
-        #-------------------------------------------------------------------------------
-        # gradient descent example for future use
-        # if(is.null(custom_sdf_time) == FALSE){
-        #   custom_SDF_per_well_total <- do.call(rbind, custom_SDF_per_well)
-        #   custom_SDF_per_well_total[custom_SDF_per_well_total == -9999] <- NA
-        #   if(all(is.na(custom_SDF_per_well_total)) == FALSE){
-        #     average_custom_sdf <- calculate_average_sdf(sdf_averaging_criteria = sdf_averaging_criteria,
-        #                                                 sdf_vec = custom_SDF_per_well_total,
-        #                                                 fracs = fracs,
-        #                                                 pumping = pumping)
-        #     custom_sdf_per_reach[[i]] <- average_custom_sdf
-        #   } else {
-        #     custom_sdf_per_reach[[i]] <- -9999
-        #   }
-        # }
-        #-------------------------------------------------------------------------------
-      } else{
-        depletions_per_reach[[i]] <- rep(0, ncol(pumping)) # reach has no depletions
-        pump_frac_per_reach[[i]] <- rep(0, ncol(pumping))
-        depletions_potential_per_reach[[i]] <- rep(0, ncol(pumping))
-        jenk_sdf_per_reach[[i]] <- NA
-        
-        if(is.null(custom_sdf_time) == FALSE){
-          custom_sdf_per_reach[[i]] <- NA
-        }
       }
-      #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
     
@@ -2965,24 +2799,13 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # stats
-    start_of_depletions <- lapply(depletions_per_reach, function(x){
-      rle(x)$lengths[1]
-    })
-    start_of_depletions <- unlist(start_of_depletions)
-    rm <- which(start_of_depletions == ncol(pumping))
-    if(length(rm) > 0){
-      start_of_depletions[-c(rm)] # if never started remove
-    } else {}
+    mean_sdf_of_depletions <- mean(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
+    median_sdf_of_depletions <- median(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
     
-    
-    
-    mean_start_of_depletions <- mean(start_of_depletions, na.rm = TRUE)
-    median_start_of_depletions <- median(start_of_depletions, na.rm = TRUE)
-    
-    final_depletions <- lapply(depletions_per_reach, function(x){
+    final_depletions <- lapply(depletions_potential_per_well, function(x){
       tail(x, 1)
     })
-    n_timesteps <- ncol(pumping)
+    n_timesteps <- tail(pumping,1)
     mean_final_depletions <- mean(unlist(final_depletions), na.rm = TRUE)
     median_final_depletions <- median(unlist(final_depletions), na.rm = TRUE)
     which_max_final_depletions <- which.max(unlist(final_depletions))
@@ -2997,10 +2820,10 @@ map_stream_depletions <- function(streams,
     
     
     writeLines(text = sprintf('%s %s',
-                              'Mean | Median start of stream depletions (timestep): ',
-                              paste(round(mean_start_of_depletions,2),
+                              paste0('Mean | Median time to custom SDF time (',custom_sdf_time,'): '),
+                              paste(round(mean_sdf_of_depletions,2),
                                     ' | ',
-                                    median_start_of_depletions)),
+                                    round(median_sdf_of_depletions,2),'[timesteps]')),
                con = log_file)
     
     
@@ -3018,50 +2841,28 @@ map_stream_depletions <- function(streams,
                               paste(round(max_final_depletions,4),
                                     'at timestep (t_final)',
                                     n_timesteps,
-                                    'for reach',
+                                    'for well at row',
                                     which_max_final_depletions)),
                con = log_file)
     #-------------------------------------------------------------------------------
     
-    
-    
-    
-    
-    
-    
     #-------------------------------------------------------------------------------
     # output
-    depletions_potential_per_reach <- do.call(rbind, depletions_potential_per_reach)
-    depletions_per_reach <- do.call(rbind, depletions_per_reach)
-    pump_frac_per_reach <- do.call(rbind, pump_frac_per_reach)
-    jenk_sdf_per_reach <- do.call(rbind, jenk_sdf_per_reach)
+    depletions_potential_per_well <- do.call(cbind, depletions_potential_per_well)
     #-------------------------------------------------------------------------------
     
     #-------------------------------------------------------------------------------
     # output and stats 2
-    writeLines(text = sprintf('%s %s',
-                              paste('Mean | Median Jenkins SDF'),
-                              paste(round(mean(jenk_sdf_per_reach, na.rm = TRUE),4),
-                                    '|',
-                                    round(median(jenk_sdf_per_reach, na.rm = TRUE),4))),
-               con = log_file)
     if(is.null(custom_sdf_time) == TRUE){
-      custom_sdf_per_reach <- NULL
+      custom_sdf_per_well <- NULL
     } else{
-      custom_sdf_per_reach <- do.call(rbind, custom_sdf_per_reach)
-      writeLines(text = sprintf('%s %s',
-                                paste('Mean | Median Custom SDF',paste0('(',custom_sdf_time,')')),
-                                paste(round(mean(custom_sdf_per_reach, na.rm = TRUE),4),
-                                      '|',
-                                      round(median(custom_sdf_per_reach, na.rm = TRUE),4))),
-                 con = log_file)
+      custom_sdf_per_well <- cbind(custom_sdf_per_well)
     }
     #-------------------------------------------------------------------------------
-    return(list(depletions_per_reach,
-                depletions_potential_per_reach,
-                pump_frac_per_reach,
-                jenk_sdf_per_reach,
-                custom_sdf_per_reach))
+    
+    #-------------------------------------------------------------------------------
+    return(list(depletions_potential_per_well,
+                custom_sdf_per_well))
     #-------------------------------------------------------------------------------
   }
   #-------------------------------------------------------------------------------
@@ -3203,117 +3004,16 @@ map_stream_depletions <- function(streams,
       #-------------------------------------------------------------------------------
       
       
-      # EXPLANATION
-      # check comments on glover model
       #-------------------------------------------------------------------------------
-      start_pumping <- c(0:(length(QW)-1))
-      stop_pumping <- c(1:length(QW))
-      timesteps <- c(0:length(QW)) 
-      
-      
-      timestep_mat <- base::matrix(timesteps,
-                                   nrow = length(timesteps),
-                                   ncol = length(start_pumping))
-      starts_mat <- base::matrix(start_pumping,
-                                 nrow = length(timesteps),
-                                 ncol = length(start_pumping),
-                                 byrow = T)
-      stops_mat <- base::matrix(stop_pumping,
-                                nrow = length(timesteps),
-                                ncol = length(stop_pumping),
-                                byrow = T)
-      pumping_mat <- base::matrix(QW,
-                                  nrow = length(timesteps),
-                                  ncol = length(QW),
-                                  byrow = T)
+      fractional_vec <- equation(elapsed_time = QW,
+                                 distance = distance,
+                                 stor_coef = stor_coef,
+                                 transmissivity = transmissivity,
+                                 leakance = leakance)
       #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
-      # calculate time since each pumping interval starts/stops, bounded at 0
-      starts_actual <- timestep_mat - starts_mat
-      starts_actual[starts_actual < 0] <- 0
-      
-      stops_actual <- timestep_mat - stops_mat
-      stops_actual[stops_actual < 0] <- 0
-      #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # vectorize for calculations
-      starts_actual_vec <- c(starts_actual)
-      stops_actual_vec <- c(stops_actual)
-      pumping_vec <- c(pumping_mat)
-      #-------------------------------------------------------------------------------
-      
-      
-      
-      #-------------------------------------------------------------------------------
-      # vector of zeroes that will be filled with the function evaluations
-      depletions_vec <- rep(0, length(starts_actual_vec))
-      fractional_vec <- rep(0, length(starts_actual_vec))
-      #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # evaulate f(t) - f(t-1)
-      depletions_vec[starts_actual_vec > 0] <-
-        pumping_vec[starts_actual_vec > 0] *
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity,
-                  leakance = leakance) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity,
-                    leakance = leakance))
-      
-      depletions_mat <- matrix(depletions_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      depletions_mat <- depletions_mat[-c(1), ]
-      depletions <- base::rowSums(depletions_mat)
-      
-      
-      
-      
-      
-      
-      fractional_vec[starts_actual_vec > 0] <-
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity,
-                  leakance = leakance) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity,
-                    leakance = leakance))
-      
-      fractional_mat <- matrix(fractional_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      fractional_mat <- fractional_mat[-c(1), ]
-      fractions <- base::rowSums(fractional_mat)
-      #-------------------------------------------------------------------------------
-      
-      
-      #-------------------------------------------------------------------------------
-      # memory allocation
-      rm(list = c('depletions_vec','depletions_mat',
-                  'fractional_mat','fractional_vec',
-                  'starts_actual','stops_actual',
-                  'timestep_mat','starts_mat',
-                  'stops_mat','pumping_mat'))
-      #-------------------------------------------------------------------------------
-      
-      
-      #-------------------------------------------------------------------------------
-      # sum and return
-      Jenk_SDF <- (distance*distance*stor_coef)/transmissivity
-      return(list(depletions,
-                  fractions,
-                  Jenk_SDF))
+      return(list(fractional_vec))
       #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
@@ -3323,40 +3023,30 @@ map_stream_depletions <- function(streams,
     
     
     
-    
-    
-    
-    
-    
     #-------------------------------------------------------------------------------
-    # for each reach calculate sum of all depletions
-    depletions_per_reach <- list()
-    pump_frac_per_reach <- list()
-    depletions_potential_per_reach <- list()
-    jenk_sdf_per_reach <- list()
-    custom_sdf_per_reach <- list()
-    for(i in 1:ncol(closest_points_per_segment)){
+    depletions_potential_per_well <- list()
+    custom_sdf_per_well <- list()
+    for(i in 1:nrow(wells)){
       #-------------------------------------------------------------------------------
       if(suppress_loading_bar == FALSE){
         #-------------------------------------------------------------------------------
         # user message
         loading_bar(iter = i,
-                    total = ncol(closest_points_per_segment),
+                    total = nrow(wells),
                     width = 50,
                     optional_text = '')
         #-------------------------------------------------------------------------------
       }
       #-------------------------------------------------------------------------------
       
-      
       #-------------------------------------------------------------------------------
       # what are the closest points to each well
-      points <- as.vector(unlist(closest_points_per_segment[, i]))
-      fracs <- as.vector(unlist(reach_impact_frac[ , i]))
+      points <- as.vector(unlist(closest_points_per_segment[i, ]))
+      fracs <- as.vector(unlist(reach_impact_frac[i, ]))
+      reach_indices <- c(1:length(points))
+      rm <- which(is.na(points))
       RN <- st_drop_geometry(stream_points_geometry[points, stream_id_key])
       RN <- as.vector(unlist(RN))
-      well_indices <- c(1:length(points))
-      rm <- which(is.na(points))
       #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
@@ -3365,18 +3055,18 @@ map_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
         # remove any non-relevant wells from the for loop
         if(length(rm) > 0){
-          well_indices <- well_indices[-c(rm)]
+          reach_indices <- reach_indices[-c(rm)]
         } else {}
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        depletions_per_well <- list()
-        pump_frac_per_well <- list()
-        depletions_potential_per_well <- list()
-        Jenk_SDF_per_well <- list()
-        custom_SDF_per_well <- list()
+        depletions_potential_per_well_per_reach <- list()
+        distances <- list()
+        transmissivities <- list()
+        leakances <- list()
+        storage_coefficients <- list()
         counter <- 0
-        for(j in well_indices){
+        for(j in reach_indices){
           #-------------------------------------------------------------------------------
           # increment list counter
           counter <- counter + 1
@@ -3384,7 +3074,7 @@ map_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           # get distances
-          distance <- st_distance(wells[j, ],
+          distance <- st_distance(wells[i, ],
                                   stream_points_geometry[points[j], ])
           distance <- as.numeric(distance)
           distances[[counter]] <- distance
@@ -3395,13 +3085,15 @@ map_stream_depletions <- function(streams,
           # or if its going to be taken as an average of the aquifer properties along a line
           # between the well and the nearest stream
           if(is.null(model_grid) == TRUE){
-            transmissivity <- as.numeric(st_drop_geometry(wells[j,well_transmissivity_key]))
-            stor_coef <- as.numeric(st_drop_geometry(wells[j, well_stor_coef_key]))
+            transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
+            stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
+            transmissivities[[counter]] <- transmissivity
+            storage_coefficients[[counter]] <- stor_coef
           } else {
             #-------------------------------------------------------------------------------
             # make line between well and stream
-            m <- matrix(c(st_coordinates(wells[j, ])[,1],
-                          st_coordinates(wells[j, ])[,2],
+            m <- matrix(c(st_coordinates(wells[i, ])[,1],
+                          st_coordinates(wells[i, ])[,2],
                           st_coordinates(stream_points_geometry[points[j], ])[,1],
                           st_coordinates(stream_points_geometry[points[j], ])[,2]),
                         ncol = 2,
@@ -3414,7 +3106,7 @@ map_stream_depletions <- function(streams,
             # selecting correct gridcells
             grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
             well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
-            gr <- model_grid[grid_layers == well_layers[j], ]
+            gr <- model_grid[grid_layers == well_layers[i], ]
             #-------------------------------------------------------------------------------
             
             #-------------------------------------------------------------------------------
@@ -3432,22 +3124,20 @@ map_stream_depletions <- function(streams,
             gr <- gr[grid_inds, ]
             transmissivity <- mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
             stor_coef <- mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+            transmissivities[[counter]] <- transmissivity
+            storage_coefficients[[counter]] <- stor_coef
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
-          # take weighted mean of leakance along the reach, closer points are weighted more
-          # logic is that closer points will control more of the flow
+          # take weighted mean of lambda along the considered reach
+          # logic is that closer points will control more
           reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
           stream_inds <- reaches == RN[j]
-          all_distances <- st_distance(wells[j, ],
-                                       stream_points_geometry[stream_inds, ])
-          all_distances <- c(1:length(all_distances))[order(as.numeric(all_distances))]
           
           leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, leakance_key])))
-          
-          leakance <- weighted_mean(x = leakance, w = all_distances, na.rm = T)
+          leakances[[counter]] <- leakance
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
@@ -3456,92 +3146,45 @@ map_stream_depletions <- function(streams,
           Q_out <- hantush_stream_depletion_model(stor_coef = stor_coef,
                                                   transmissivity = transmissivity,
                                                   distance = distance,
-                                                  QW = pumping[j, ],
+                                                  QW = pumping,
                                                   leakance = leakance)
-          Q_final <- Q_out[[1]]*fracs[j]
-          Q_fraction <- Q_out[[2]]
-          Jenk_SDF <- Q_out[[3]]
-          #-------------------------------------------------------------------------------
-          
-          
-          #-------------------------------------------------------------------------------
-          # gradient descent example for future use
-          # if(is.null(custom_sdf_time) == FALSE){
-          #   custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
-          #                                             distance = distance,
-          #                                             stor_coef = stor_coef,
-          #                                             transmissivity = transmissivity,
-          #                                             leakance = leakance,
-          #                                             custom_sdf_time = custom_sdf_time)
-          #   custom_SDF_per_well[[counter]] <- custom_SDF
-          # }
+          Q_fraction <- Q_out[[1]]*fracs[j]
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
-          depletions_per_well[[counter]] <- Q_final
-          depletions_potential_per_well[[counter]] <- Q_fraction
-          pump_frac_per_well[[counter]] <- pumping[j, ] * fracs[j]
-          Jenk_SDF_per_well[[counter]] <- Jenk_SDF
+          depletions_potential_per_well_per_reach[[counter]] <- Q_fraction
           #-------------------------------------------------------------------------------
         }
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        depletions_total <- do.call(cbind, depletions_per_well)
-        pump_frac_per_well_total <- do.call(cbind, pump_frac_per_well)
-        depletions_potential_per_well_total <- do.call(cbind, depletions_potential_per_well)
-        Jenk_SDF_per_well_total <- do.call(rbind, Jenk_SDF_per_well)
+        depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
+        depletions_total[is.na(depletions_total) == TRUE] <- 0
+        depletions_total <- base::colSums(depletions_total)
+        depletions_potential_per_well[[i]] <- depletions_total
         #-------------------------------------------------------------------------------
         
-        #-------------------------------------------------------------------------------
-        average_fractional_depletions <- calculate_depletion_potential(depletion_potential_criteria = depletion_potential_criteria,
-                                                                       depletions_potential_per_well_total = depletions_potential_per_well_total,
-                                                                       distances = distances,
-                                                                       fracs = fracs,
-                                                                       pumping = pumping)
-        average_Jenk_SDF <- calculate_average_sdf(sdf_averaging_criteria = sdf_averaging_criteria,
-                                                  sdf_vec = Jenk_SDF_per_well_total,
-                                                  fracs = fracs,
-                                                  pumping = pumping)
         
-        jenk_sdf_per_reach[[i]] <- average_Jenk_SDF
-        depletions_potential_per_reach[[i]] <- average_fractional_depletions
-        depletions_per_reach[[i]] <- base::rowSums(depletions_total)
-        pump_frac_per_reach[[i]] <- base::rowSums(pump_frac_per_well_total)
+        # -------------------------------------------------------------------------------
         if(is.null(custom_sdf_time) == FALSE){
-          
-          custom_sdf_per_reach[[i]] <- calculate_custom_sdf_time(average_fractional_depletions,
-                                                                 target = custom_sdf_time)
+          custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
+                                                    distance = as.vector(unlist(distances)),
+                                                    stor_coef = as.vector(unlist(storage_coefficients)),
+                                                    transmissivity = as.vector(unlist(transmissivities)),
+                                                    leakance = as.vector(unlist(leakances)),
+                                                    custom_sdf_time = custom_sdf_time)
+          custom_sdf_per_well[[i]] <- custom_SDF
         }
+        # -------------------------------------------------------------------------------
+      } else {
         #-------------------------------------------------------------------------------
-
-        
-        #-------------------------------------------------------------------------------
-        # if(is.null(custom_sdf_time) == FALSE){
-        #   custom_SDF_per_well_total <- do.call(rbind, custom_SDF_per_well)
-        #   custom_SDF_per_well_total[custom_SDF_per_well_total == -9999] <- NA
-        #   if(all(is.na(custom_SDF_per_well_total)) == FALSE){
-        #     average_custom_sdf <- calculate_average_sdf(sdf_averaging_criteria = sdf_averaging_criteria,
-        #                                                 sdf_vec = custom_SDF_per_well_total,
-        #                                                 fracs = fracs,
-        #                                                 pumping = pumping)
-        #     custom_sdf_per_reach[[i]] <- average_custom_sdf
-        #   } else {
-        #     custom_sdf_per_reach[[i]] <- -9999
-        #   }
-        # }
-        #-------------------------------------------------------------------------------
-      } else{
-        depletions_per_reach[[i]] <- rep(0, ncol(pumping)) # reach has no depletions
-        pump_frac_per_reach[[i]] <- rep(0, ncol(pumping))
-        depletions_potential_per_reach[[i]] <- rep(0, ncol(pumping))
-        jenk_sdf_per_reach[[i]] <- NA
+        depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
         
         if(is.null(custom_sdf_time) == FALSE){
-          custom_sdf_time[[i]] <- NA
+          custom_sdf_per_well[[i]] <- NA
         }
+        #-------------------------------------------------------------------------------
       }
-      #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
     
@@ -3550,24 +3193,13 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # stats
-    start_of_depletions <- lapply(depletions_per_reach, function(x){
-      rle(x)$lengths[1]
-    })
-    start_of_depletions <- unlist(start_of_depletions)
-    rm <- which(start_of_depletions == ncol(pumping))
-    if(length(rm) > 0){
-      start_of_depletions[-c(rm)] # if never started remove
-    } else {}
+    mean_sdf_of_depletions <- mean(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
+    median_sdf_of_depletions <- median(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
     
-    
-    
-    mean_start_of_depletions <- mean(start_of_depletions, na.rm = TRUE)
-    median_start_of_depletions <- median(start_of_depletions, na.rm = TRUE)
-    
-    final_depletions <- lapply(depletions_per_reach, function(x){
+    final_depletions <- lapply(depletions_potential_per_well, function(x){
       tail(x, 1)
     })
-    n_timesteps <- ncol(pumping)
+    n_timesteps <- tail(pumping,1)
     mean_final_depletions <- mean(unlist(final_depletions), na.rm = TRUE)
     median_final_depletions <- median(unlist(final_depletions), na.rm = TRUE)
     which_max_final_depletions <- which.max(unlist(final_depletions))
@@ -3582,10 +3214,10 @@ map_stream_depletions <- function(streams,
     
     
     writeLines(text = sprintf('%s %s',
-                              'Mean | Median start of stream depletions (timestep): ',
-                              paste(round(mean_start_of_depletions,2),
+                              paste0('Mean | Median time to custom SDF time (',custom_sdf_time,'): '),
+                              paste(round(mean_sdf_of_depletions,2),
                                     ' | ',
-                                    median_start_of_depletions)),
+                                    round(median_sdf_of_depletions,2),'[timesteps]')),
                con = log_file)
     
     
@@ -3603,50 +3235,28 @@ map_stream_depletions <- function(streams,
                               paste(round(max_final_depletions,4),
                                     'at timestep (t_final)',
                                     n_timesteps,
-                                    'for reach',
+                                    'for well at row',
                                     which_max_final_depletions)),
                con = log_file)
     #-------------------------------------------------------------------------------
     
-    
-    
-    
-    
-    
-    
     #-------------------------------------------------------------------------------
     # output
-    depletions_potential_per_reach <- do.call(rbind, depletions_potential_per_reach)
-    depletions_per_reach <- do.call(rbind, depletions_per_reach)
-    pump_frac_per_reach <- do.call(rbind, pump_frac_per_reach)
-    jenk_sdf_per_reach <- do.call(rbind, jenk_sdf_per_reach)
+    depletions_potential_per_well <- do.call(cbind, depletions_potential_per_well)
     #-------------------------------------------------------------------------------
     
     #-------------------------------------------------------------------------------
     # output and stats 2
-    writeLines(text = sprintf('%s %s',
-                              paste('Mean | Median Jenkins SDF'),
-                              paste(round(mean(jenk_sdf_per_reach, na.rm = TRUE),4),
-                                    '|',
-                                    round(median(jenk_sdf_per_reach, na.rm = TRUE),4))),
-               con = log_file)
     if(is.null(custom_sdf_time) == TRUE){
-      custom_sdf_per_reach <- NULL
+      custom_sdf_per_well <- NULL
     } else{
-      custom_sdf_per_reach <- do.call(rbind, custom_sdf_per_reach)
-      writeLines(text = sprintf('%s %s',
-                                paste('Mean | Median Custom SDF',paste0('(',custom_sdf_time,')')),
-                                paste(round(mean(custom_sdf_per_reach, na.rm = TRUE),4),
-                                      '|',
-                                      round(median(custom_sdf_per_reach, na.rm = TRUE),4))),
-                 con = log_file)
+      custom_sdf_per_well <- cbind(custom_sdf_per_well)
     }
     #-------------------------------------------------------------------------------
-    return(list(depletions_per_reach,
-                depletions_potential_per_reach,
-                pump_frac_per_reach,
-                jenk_sdf_per_reach,
-                custom_sdf_per_reach))
+    
+    #-------------------------------------------------------------------------------
+    return(list(depletions_potential_per_well,
+                custom_sdf_per_well))
     #-------------------------------------------------------------------------------
   }
   #-------------------------------------------------------------------------------
@@ -3710,7 +3320,7 @@ map_stream_depletions <- function(streams,
       wells <- proj_output[[1]]
       
       wells_id_key <- 'ID'
-      wells$ID <- c(1:nrow(wells))
+      wells[,wells_id_key] <- c(1:nrow(wells))
       #-------------------------------------------------------------------------------
     } 
     #-------------------------------------------------------------------------------
@@ -3752,8 +3362,16 @@ map_stream_depletions <- function(streams,
       #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
-      x_coords <- c(well_grid_ext[1],well_grid_ext[1],well_grid_ext[2],well_grid_ext[2],well_grid_ext[1])
-      y_coords <- c(well_grid_ext[3],well_grid_ext[4],well_grid_ext[4],well_grid_ext[3],well_grid_ext[3])
+      x_coords <- c(as.numeric(well_grid_ext[1]),
+                    as.numeric(well_grid_ext[1]),
+                    as.numeric(well_grid_ext[2]),
+                    as.numeric(well_grid_ext[2]),
+                    as.numeric(well_grid_ext[1]))
+      y_coords <- c(as.numeric(well_grid_ext[3]),
+                    as.numeric(well_grid_ext[4]),
+                    as.numeric(well_grid_ext[4]),
+                    as.numeric(well_grid_ext[3]),
+                    as.numeric(well_grid_ext[3]))
       df$geometry[1] <- st_polygon(list(cbind(x_coords,
                                               y_coords)))
       #-------------------------------------------------------------------------------
@@ -3764,6 +3382,7 @@ map_stream_depletions <- function(streams,
                             cellsize = well_grid_cellsize)
       wells <- st_centroid(wells)
       wells <- st_sf(wells)
+      st_geometry(wells) <- 'geometry'
       coords <- st_coordinates(wells)
       ncol_well_grid <- rle(coords[,2])$lengths[1]
       nrow_well_grid <- nrow(wells)/ncol_well_grid
@@ -3785,8 +3404,8 @@ map_stream_depletions <- function(streams,
       proj_output <- ensure_projections(projection_object = streams,
                                         geometry_list = list(wells))
       wells <- proj_output[[1]]
-      wells_id_key <- 'ID'
-      wells$ID <- c(1:nrow(wells))
+      wells[,well_layer_key] <- well_layer
+      wells[,wells_id_key] <- c(1:nrow(wells))
       #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
@@ -4308,7 +3927,7 @@ map_stream_depletions <- function(streams,
     require_package(required_packages[i])
   }
 
-  units <- units(st_distance(wells[1, ], wells[1, ]))$numerator
+  units <- units(st_distance(streams[1, ], streams[1, ]))$numerator
   if(units == 'm'){
     units <- 'meters'
   } else if (units == 'B0'){
@@ -4428,14 +4047,15 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
   }
   
-  
-  if(!well_stor_coef_key %in% colnames(wells) |
-     !well_transmissivity_key %in% colnames(wells)){
+  if(is.null(model_grid) == FALSE &
+     is.null(wells) == TRUE &
+     is.null(well_layer) == TRUE){
     #-------------------------------------------------------------------------------
     writeLines(text = sprintf('%s',
-                              paste0('Identifying column for storage coefficient or transmissivity in ',
-                                     'all models',
-                                     ' required but not present in well set')),
+                              paste0('Model grid layer of wells must be passed to the program in ')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              paste0('the circumstance where wells are to be made by regular grid.')),
                con = log_file)
     writeLines(text = sprintf('%s',
                               'Exiting program ...'),
@@ -4446,9 +4066,34 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
-                'Identifying column for storage coefficient or transmissivity in ',
-                'all models',
-                ' required but not present in well set\n',
+                'Model grid layer of wells must be passed to the program in ',
+                'the circumstance where wells are to be made by regular grid.\n',
+                'exiting program ...'))
+    #-------------------------------------------------------------------------------
+  }
+  
+  
+  
+  if(is.null(model_grid) == TRUE &
+     is.null(wells) == TRUE){
+    #-------------------------------------------------------------------------------
+    writeLines(text = sprintf('%s',
+                              paste0('No model grid nor wells manually assigned with information present ')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              paste0('with which to extract geologic information.')),
+               con = log_file)
+    writeLines(text = sprintf('%s',
+                              'Exiting program ...'),
+               con = log_file)
+    close(log_file)
+    #-------------------------------------------------------------------------------
+    
+    
+    #-------------------------------------------------------------------------------
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
+                'No model grid nor wells manually assigned with information present ',
+                'with which to extract geologic information.\n',
                 'exiting program ...'))
     #-------------------------------------------------------------------------------
   }
@@ -4456,27 +4101,6 @@ map_stream_depletions <- function(streams,
   
   if(is.null(model_grid) == FALSE){
     if(is.null(well_layer_key) == TRUE){
-      #-------------------------------------------------------------------------------
-      writeLines(text = sprintf('%s',
-                                paste0('Identifying column for layer required ',
-                                       'when model grid passed as argument',
-                                       ' but not present in well set')),
-                 con = log_file)
-      writeLines(text = sprintf('%s',
-                                'Exiting program ...'),
-                 con = log_file)
-      close(log_file)
-      #-------------------------------------------------------------------------------
-      
-      
-      #-------------------------------------------------------------------------------
-      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
-                  'Identifying column for layer required ',
-                  'when model grid passed as argument',
-                  ' but not present in well set\n',
-                  'exiting program ...'))
-      #-------------------------------------------------------------------------------
-    } else if(!well_layer_key %in% colnames(wells)){
       #-------------------------------------------------------------------------------
       writeLines(text = sprintf('%s',
                                 paste0('Identifying column for layer required ',
@@ -4807,7 +4431,7 @@ map_stream_depletions <- function(streams,
       stream_id_key <- 'ID'
       streams$ID <- c(1:nrow(streams))
     } else {}
-    
+    wells_id_key <- 'ID'
     output <- find_impacted_stream_segments(streams,
                                             wells,
                                             subwatersheds,
@@ -5046,32 +4670,17 @@ map_stream_depletions <- function(streams,
                                                   lambda_key = lambda_key,
                                                   leakance_key = leakance_key,
                                                   analytical_model = analytical_model)
-    depletions_by_reach <- output[[1]]
-    depletions_potential_by_reach <- output[[2]]
-    pump_frac_by_reach <- output[[3]]
-    jenk_sdf_by_reach <- output[[4]]
-    custom_sdf_by_reach <- output[[5]]
+    depletions_potential_by_well <- output[[1]]
+    custom_sdf_by_reach <- output[[2]]
     #-------------------------------------------------------------------------------
 
     
     #-------------------------------------------------------------------------------
     write.csv(depletions_by_reach,
               file.path(data_out_dir,
-                        paste0('volumetric_depletions_by_reach.csv')),
+                        paste0('fractional_depletions_by_well.csv')),
               row.names = FALSE)
-    write.csv(depletions_potential_by_reach,
-              file.path(data_out_dir,
-                        paste0('fractional_depletions_by_reach.csv')),
-              row.names = FALSE)
-    write.csv(pump_frac_by_reach,
-              file.path(data_out_dir,
-                        paste0('pump_frac_by_reach.csv')),
-              row.names = FALSE)
-    write.csv(jenk_sdf_by_reach,
-              file.path(data_out_dir,
-                        paste0('jenk_sdf_by_reach.csv')),
-              row.names = FALSE)
-    
+
     if(is.null(custom_sdf_time) == FALSE){
       write.csv(custom_sdf_by_reach,
                 file.path(data_out_dir,
