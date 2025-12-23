@@ -376,6 +376,7 @@ map_stream_depletions <- function(streams,
                                           distance = distance,
                                           stor_coef = stor_coef,
                                           transmissivity = transmissivity,
+                                          fracs = fracs,
                                           lambda = NULL,
                                           leakance = NULL)
   {
@@ -413,7 +414,7 @@ map_stream_depletions <- function(streams,
         
         t3_a <- Rmpfr::mpfr((sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity))),  prec = prec)
         t3 <- Rmpfr::erfc(t3_a + z)
-        r <- as.numeric(t1 - (t2*t3))
+        r <- sum(as.numeric(t1 - (t2*t3))*fracs)
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
@@ -498,7 +499,7 @@ map_stream_depletions <- function(streams,
         
         #-------------------------------------------------------------------------------
         # fill infinite indices with higher precision numbers
-        r <- as.numeric(t1 - (t2*t3))
+        r <- sum(as.numeric(t1 - (t2*t3))*fracs)
         #-------------------------------------------------------------------------------
         
         
@@ -560,7 +561,6 @@ map_stream_depletions <- function(streams,
     
     
     
-    
 
     #-------------------------------------------------------------------------------
     # if hantush model is to be approximated by gradient descent
@@ -579,9 +579,8 @@ map_stream_depletions <- function(streams,
         
         #-------------------------------------------------------------------------------
         # fill infinite indices with higher precision numbers
-        r <- sum(QA)
+        r <- sum(QA*fracs)
         #-------------------------------------------------------------------------------
-        
         
         #-------------------------------------------------------------------------------
         # is it reasonable that an answer can be approached?
@@ -589,17 +588,36 @@ map_stream_depletions <- function(streams,
         # given the precision
         if(is.nan(r) == FALSE){
           if(r > (custom_sdf_time + custom_sdf_convergence_threshold)){
+            
+            #-------------------------------------------------------------------------------
+            # correct overshot modifier
+            while(test_time-(mod*(1-erfc(r-custom_sdf_time))) < 0){
+              mod <- mod*0.9
+              mod_subtract <- mod/10
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # test and history
             test_time <- test_time-(mod*(1-erfc(r-custom_sdf_time)))
             history <- append(history, '+')
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # lats chance correction
             if(test_time < 0){
               test_time <- 1
             }
+            #-------------------------------------------------------------------------------
           } else if(r < (custom_sdf_time + custom_sdf_convergence_threshold)){
+            #-------------------------------------------------------------------------------
+            # correct test if shot high
             test_time <- test_time+(mod*(1-erfc(custom_sdf_time-r)))
             history <- append(history, '-')
             if(test_time < 0){
               test_time <- 1
             }
+            #-------------------------------------------------------------------------------
           }
           
           #-------------------------------------------------------------------------------
@@ -2371,7 +2389,7 @@ map_stream_depletions <- function(streams,
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
-          
+
           #-------------------------------------------------------------------------------
           # calculate maximum stream depletion potential and
           # multiply by fraction of depletions of this well apportioned to this reach
@@ -2402,7 +2420,8 @@ map_stream_depletions <- function(streams,
                                                     distance = as.vector(unlist(distances)),
                                                     stor_coef = as.vector(unlist(storage_coefficients)),
                                                     transmissivity = as.vector(unlist(transmissivities)),
-                                                    custom_sdf_time = custom_sdf_time)
+                                                    custom_sdf_time = custom_sdf_time,
+                                                    fracs = fracs[reach_indices])
           custom_sdf_per_well[[i]] <- custom_SDF
         }
         # -------------------------------------------------------------------------------
@@ -2789,6 +2808,7 @@ map_stream_depletions <- function(streams,
                                                     distance = as.vector(unlist(distances)),
                                                     stor_coef = as.vector(unlist(storage_coefficients)),
                                                     transmissivity = as.vector(unlist(transmissivities)),
+                                                    fracs = fracs[reach_indices],
                                                     lambda = as.vector(unlist(lambdas)),
                                                     custom_sdf_time = custom_sdf_time)
           custom_sdf_per_well[[i]] <- custom_SDF
@@ -3183,6 +3203,7 @@ map_stream_depletions <- function(streams,
                                                     distance = as.vector(unlist(distances)),
                                                     stor_coef = as.vector(unlist(storage_coefficients)),
                                                     transmissivity = as.vector(unlist(transmissivities)),
+                                                    fracs = fracs[reach_indices],
                                                     leakance = as.vector(unlist(leakances)),
                                                     custom_sdf_time = custom_sdf_time)
           custom_sdf_per_well[[i]] <- custom_SDF
@@ -3366,11 +3387,13 @@ map_stream_depletions <- function(streams,
       if(is.null(well_crs) == TRUE){
         df <- st_as_sf(df,
                        coords = c('Lon','Lat'),
-                       crs = st_crs(streams))
+                       crs = 4326)
+        df <- st_transform(df, st_crs(streams))
       } else {
         df <- st_as_sf(df,
-                       coords = c('Lon','Lat'),
-                       crs = well_crs)
+                      coords = c('Lon','Lat'),
+                      crs = 4326)
+        df <- st_transform(df, well_crs)
       }
       #-------------------------------------------------------------------------------
       
