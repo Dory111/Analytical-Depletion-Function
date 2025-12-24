@@ -107,7 +107,8 @@ depletions in reaches ‘r’ equal the pumping in well ‘w’ multiplied by
 *custom_sdf_time*. Accepts any number, but recommended to chose between
 0.1 and 0.9. If set to *NULL* no calculations are done. If time cannot
 be determined within *n_sdf_covergence_tries* -9999 is returned for that
-well. <br/> <br/>
+well usually. In the special case that time cannot be determined and the
+solution lies between timestep 0 and 1 -Inf returned. <br/> <br/>
 <b><font size = "3">custom_sdf_convergence_threshold</font></b>:
 *numeric* default *0.01*, describes the margin within which an
 acceptable answer is found to the descent method of *custom_sdf_time*.

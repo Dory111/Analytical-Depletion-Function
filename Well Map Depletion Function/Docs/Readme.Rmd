@@ -88,7 +88,7 @@ This solution is identical to the Hantush (1965) solution in the special case th
 <b><font size = "3">well_crs</font></b>: *char* default *NULL*, describes the crs of the grid extent. Only necessary if no argument is passed to *wells* and the extent and cellsize are being used instead.
 <br/>
 <br/>
-<b><font size = "3">custom_sdf_time</font></b>: *numeric* default *NULL*, describes whether to find the time when the depletions in reaches 'r' equal the pumping in well 'w' multiplied by *custom_sdf_time*. Accepts any number, but recommended to chose between 0.1 and 0.9. If set to *NULL* no calculations are done. If time cannot be determined within *n_sdf_covergence_tries* -9999 is returned for that well.
+<b><font size = "3">custom_sdf_time</font></b>: *numeric* default *NULL*, describes whether to find the time when the depletions in reaches 'r' equal the pumping in well 'w' multiplied by *custom_sdf_time*. Accepts any number, but recommended to chose between 0.1 and 0.9. If set to *NULL* no calculations are done. If time cannot be determined within *n_sdf_covergence_tries* -9999 is returned for that well usually. In the special case that time cannot be determined and the solution lies between timestep 0 and 1 -Inf returned.
 <br/>
 <br/>
 <b><font size = "3">custom_sdf_convergence_threshold</font></b>: *numeric* default *0.01*, describes the margin within which an acceptable answer is found to the descent method of *custom_sdf_time*. For example if this argument is set to 0.01 and *custom_sdf_time* is set to 0.5, then any answer between 0.49 and 0.51 is acceptable.

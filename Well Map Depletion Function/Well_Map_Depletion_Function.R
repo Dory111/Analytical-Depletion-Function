@@ -423,30 +423,58 @@ map_stream_depletions <- function(streams,
         # given the precision
         if(is.nan(r) == FALSE){
           if(r > (custom_sdf_time + custom_sdf_convergence_threshold)){
-            test_time <- test_time-(mod*(1-erfc(r-custom_sdf_time)))
+            #-------------------------------------------------------------------------------
             history <- append(history, '+')
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # correct overshot modifier
+            while(test_time-(mod*(1-erfc(r-custom_sdf_time))) < 0){
+              mod <- mod*0.5
+              mod_subtract <- mod/10
+              # make a history that if a miss goes high it will trigger a subtract
+              # last ditch effort
+              history <- c(rep(c('-','+'),4),'-') 
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # test and history
+            test_time <- test_time-(mod*(1-erfc(r-custom_sdf_time)))
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # lats chance correction
             if(test_time < 0){
               test_time <- 1
             }
+            #-------------------------------------------------------------------------------
           } else if(r < (custom_sdf_time + custom_sdf_convergence_threshold)){
+            #-------------------------------------------------------------------------------
+            # correct test if shot high
             test_time <- test_time+(mod*(1-erfc(custom_sdf_time-r)))
             history <- append(history, '-')
             if(test_time < 0){
               test_time <- 1
             }
+            #-------------------------------------------------------------------------------
           }
+          #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
           # if bouncing around the answer but taking too big of step sizes
           if(length(history) >= 10){
-            if(paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('+','-'),5), collapse = '')|
-               paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('-','+'),5), collapse = '')){
+            recent_history <- history[(length(history)-9):length(history)]
+            
+            if(paste(recent_history, collapse = '') == paste(rep(c('+','-'),5), collapse = '')|
+               paste(recent_history, collapse = '') == paste(rep(c('-','+'),5), collapse = '')){
               mod <- mod - mod_subtract
+              mod_subtract <- mod/10
               history <- c()
             }
             
-            if(paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('-'),10), collapse = '')|
-               paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('+'),10), collapse = '')){
+            if(paste(recent_history, collapse = '') == paste(rep(c('-'),10), collapse = '')|
+               paste(recent_history, collapse = '') == paste(rep(c('+'),10), collapse = '')){
               mod <- mod*2
               mod_subtract <- mod/10
               history <- c()
@@ -457,8 +485,27 @@ map_stream_depletions <- function(streams,
           #-------------------------------------------------------------------------------
           # if max tries reached break
           if(counter == n_sdf_convergence_tries){
-            test_time <- -9999
-            r <- custom_sdf_time
+            #-------------------------------------------------------------------------------
+            # Testing between 0 and 1
+            QA0 <- erfc(sqrt((stor_coef * distance**2)/
+                               (4*transmissivity*0.001)))
+            r0 <- sum(QA0*fracs)
+            QA1 <- erfc(sqrt((stor_coef * distance**2)/
+                               (4*transmissivity*1)))
+            r1 <- sum(QA1*fracs)
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # if its between 0 and 1 and solver couldnt find solution
+            if(custom_sdf_time > r0 &
+               custom_sdf_time < r1){
+              test_time <- -Inf
+              r <- custom_sdf_time
+            } else {
+              test_time <- -9999
+              r <- custom_sdf_time
+            }
+            #-------------------------------------------------------------------------------
           } else {}
           #-------------------------------------------------------------------------------
         } else {
@@ -509,98 +556,24 @@ map_stream_depletions <- function(streams,
         # given the precision
         if(is.nan(r) == FALSE){
           if(r > (custom_sdf_time + custom_sdf_convergence_threshold)){
-            test_time <- test_time-(mod*(1-erfc(r-custom_sdf_time)))
+            #-------------------------------------------------------------------------------
             history <- append(history, '+')
-            if(test_time < 0){
-              test_time <- 1
-            }
-          } else if(r < (custom_sdf_time + custom_sdf_convergence_threshold)){
-            test_time <- test_time+(mod*(1-erfc(custom_sdf_time-r)))
-            history <- append(history, '-')
-            if(test_time < 0){
-              test_time <- 1
-            }
-          }
-          
-          #-------------------------------------------------------------------------------
-          # if bouncing around the answer but taking too big of step sizes
-          if(length(history) >= 10){
-            if(paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('+','-'),5), collapse = '')|
-               paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('-','+'),5), collapse = '')){
-              mod <- mod - mod_subtract
-              history <- c()
-            }
-            
-            if(paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('-'),10), collapse = '')|
-               paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('+'),10), collapse = '')){
-              mod <- mod*2
-              mod_subtract <- mod/10
-              history <- c()
-            }
-          }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # if max tries reached break
-          if(counter == n_sdf_convergence_tries){
-            test_time <- -9999
-            r <- custom_sdf_time
-          } else {}
-          #-------------------------------------------------------------------------------
-        } else {
-          test_time <- -9999
-          r <- custom_sdf_time
-        }
-        #-------------------------------------------------------------------------------
-      }
-      #-------------------------------------------------------------------------------
-    }
-    #-------------------------------------------------------------------------------
-    
-    
-    
-    
-    
-
-    #-------------------------------------------------------------------------------
-    # if hantush model is to be approximated by gradient descent
-    if(str_to_title(analytical_model) == 'Glover'){
-      while((r < (custom_sdf_time + custom_sdf_convergence_threshold) &
-             r > (custom_sdf_time - custom_sdf_convergence_threshold)) == FALSE){
-        #-------------------------------------------------------------------------------
-        counter <- counter + 1
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # apply glover equation
-        QA <- erfc(sqrt((stor_coef * distance**2)/
-                        (4*transmissivity*test_time)))
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # fill infinite indices with higher precision numbers
-        r <- sum(QA*fracs)
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # is it reasonable that an answer can be approached?
-        # is transmissivity too low over the given distance that the answer can be approximated
-        # given the precision
-        if(is.nan(r) == FALSE){
-          if(r > (custom_sdf_time + custom_sdf_convergence_threshold)){
+            #-------------------------------------------------------------------------------
             
             #-------------------------------------------------------------------------------
             # correct overshot modifier
             while(test_time-(mod*(1-erfc(r-custom_sdf_time))) < 0){
-              mod <- mod*0.9
+              mod <- mod*0.5
               mod_subtract <- mod/10
+              # make a history that if a miss goes high it will trigger a subtract
+              # last ditch effort
+              history <- c(rep(c('-','+'),4),'-') 
             }
             #-------------------------------------------------------------------------------
             
             #-------------------------------------------------------------------------------
             # test and history
             test_time <- test_time-(mod*(1-erfc(r-custom_sdf_time)))
-            history <- append(history, '+')
             #-------------------------------------------------------------------------------
             
             #-------------------------------------------------------------------------------
@@ -619,18 +592,22 @@ map_stream_depletions <- function(streams,
             }
             #-------------------------------------------------------------------------------
           }
+          #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
           # if bouncing around the answer but taking too big of step sizes
           if(length(history) >= 10){
-            if(paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('+','-'),5), collapse = '')|
-               paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('-','+'),5), collapse = '')){
+            recent_history <- history[(length(history)-9):length(history)]
+            
+            if(paste(recent_history, collapse = '') == paste(rep(c('+','-'),5), collapse = '')|
+               paste(recent_history, collapse = '') == paste(rep(c('-','+'),5), collapse = '')){
               mod <- mod - mod_subtract
+              mod_subtract <- mod/10
               history <- c()
             }
             
-            if(paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('-'),10), collapse = '')|
-               paste(history[(length(history)-9):length(history)], collapse = '') == paste(rep(c('+'),10), collapse = '')){
+            if(paste(recent_history, collapse = '') == paste(rep(c('-'),10), collapse = '')|
+               paste(recent_history, collapse = '') == paste(rep(c('+'),10), collapse = '')){
               mod <- mod*2
               mod_subtract <- mod/10
               history <- c()
@@ -641,8 +618,152 @@ map_stream_depletions <- function(streams,
           #-------------------------------------------------------------------------------
           # if max tries reached break
           if(counter == n_sdf_convergence_tries){
-            test_time <- -9999
-            r <- custom_sdf_time
+            #-------------------------------------------------------------------------------
+            # Testing between 0 and 1
+            QA0 <- erfc(sqrt((stor_coef * distance**2)/
+                               (4*transmissivity*0.001)))
+            r0 <- sum(QA0*fracs)
+            QA1 <- erfc(sqrt((stor_coef * distance**2)/
+                               (4*transmissivity*1)))
+            r1 <- sum(QA1*fracs)
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # if its between 0 and 1 and solver couldnt find solution
+            if(custom_sdf_time > r0 &
+               custom_sdf_time < r1){
+              test_time <- -Inf
+              r <- custom_sdf_time
+            } else {
+              test_time <- -9999
+              r <- custom_sdf_time
+            }
+            #-------------------------------------------------------------------------------
+          } else {}
+          #-------------------------------------------------------------------------------
+        } else {
+          test_time <- -9999
+          r <- custom_sdf_time
+        }
+        #-------------------------------------------------------------------------------
+      }
+      #-------------------------------------------------------------------------------
+    }
+    #-------------------------------------------------------------------------------
+    
+    
+    
+
+    #-------------------------------------------------------------------------------
+    # if hantush model is to be approximated by gradient descent
+    if(str_to_title(analytical_model) == 'Glover'){
+      while((r < (custom_sdf_time + custom_sdf_convergence_threshold) &
+             r > (custom_sdf_time - custom_sdf_convergence_threshold)) == FALSE){
+        #-------------------------------------------------------------------------------
+        counter <- counter + 1
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        # apply glover equation
+        QA <- erfc(sqrt((stor_coef * distance**2)/
+                        (4*transmissivity*test_time)))
+        #-------------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------------
+        # fill infinite indices with higher precision numbers
+        r <- sum(QA*fracs)
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        # is it reasonable that an answer can be approached?
+        # is transmissivity too low over the given distance that the answer can be approximated
+        # given the precision
+        if(is.nan(r) == FALSE){
+          if(r > (custom_sdf_time + custom_sdf_convergence_threshold)){
+            
+            #-------------------------------------------------------------------------------
+            history <- append(history, '+')
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # correct overshot modifier
+            while(test_time-(mod*(1-erfc(r-custom_sdf_time))) < 0){
+              mod <- mod*0.5
+              mod_subtract <- mod/10
+              # make a history that if a miss goes high it will trigger a subtract
+              # last ditch effort
+              history <- c(rep(c('-','+'),4),'-') 
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # test and history
+            test_time <- test_time-(mod*(1-erfc(r-custom_sdf_time)))
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # lats chance correction
+            if(test_time < 0){
+              test_time <- 1
+            }
+            #-------------------------------------------------------------------------------
+          } else if(r < (custom_sdf_time + custom_sdf_convergence_threshold)){
+            #-------------------------------------------------------------------------------
+            # correct test if shot high
+            test_time <- test_time+(mod*(1-erfc(custom_sdf_time-r)))
+            history <- append(history, '-')
+            if(test_time < 0){
+              test_time <- 1
+            }
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # if bouncing around the answer but taking too big of step sizes
+          if(length(history) >= 10){
+            recent_history <- history[(length(history)-9):length(history)]
+            
+            if(paste(recent_history, collapse = '') == paste(rep(c('+','-'),5), collapse = '')|
+               paste(recent_history, collapse = '') == paste(rep(c('-','+'),5), collapse = '')){
+              mod <- mod - mod_subtract
+              mod_subtract <- mod/10
+              history <- c()
+            }
+            
+            if(paste(recent_history, collapse = '') == paste(rep(c('-'),10), collapse = '')|
+               paste(recent_history, collapse = '') == paste(rep(c('+'),10), collapse = '')){
+              mod <- mod*2
+              mod_subtract <- mod/10
+              history <- c()
+            }
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # if max tries reached break
+          if(counter == n_sdf_convergence_tries){
+            #-------------------------------------------------------------------------------
+            # Testing between 0 and 1
+            QA0 <- erfc(sqrt((stor_coef * distance**2)/
+                              (4*transmissivity*0.001)))
+            r0 <- sum(QA0*fracs)
+            QA1 <- erfc(sqrt((stor_coef * distance**2)/
+                               (4*transmissivity*1)))
+            r1 <- sum(QA1*fracs)
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # if its between 0 and 1 and solver couldnt find solution
+            if(custom_sdf_time > r0 &
+               custom_sdf_time < r1){
+              test_time <- -Inf
+              r <- custom_sdf_time
+            } else {
+              test_time <- -9999
+              r <- custom_sdf_time
+            }
+            #-------------------------------------------------------------------------------
           } else {}
           #-------------------------------------------------------------------------------
         } else {
