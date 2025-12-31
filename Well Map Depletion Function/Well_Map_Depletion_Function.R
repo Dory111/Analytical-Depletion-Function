@@ -2567,8 +2567,10 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # stats
-    mean_sdf_of_depletions <- mean(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
-    median_sdf_of_depletions <- median(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
+    s1_mean <- as.vector(unlist(custom_sdf_per_well))
+    s1_median <- as.vector(unlist(custom_sdf_per_well))
+    mean_sdf_of_depletions <- mean(s1_mean[s1_mean != -9999], na.rm = TRUE)
+    median_sdf_of_depletions <- median(s1_median[s1_median != -9999], na.rm = TRUE)
     
     final_depletions <- lapply(depletions_potential_per_well, function(x){
       tail(x, 1)
@@ -2609,7 +2611,7 @@ map_stream_depletions <- function(streams,
                               paste(round(max_final_depletions,4),
                                     'at timestep (t_final)',
                                     n_timesteps,
-                                    'for well at row',
+                                    'for well',
                                     which_max_final_depletions)),
                con = log_file)
     #-------------------------------------------------------------------------------
