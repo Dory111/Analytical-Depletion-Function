@@ -2506,7 +2506,7 @@ map_stream_depletions <- function(streams,
           grid_inds <- lapply(lines, function(x){
             #-------------------------------------------------------------------------------
             # intersect line between well and stream with the grid
-            int <- st_intersects(gr, x$geometry)
+            int <- st_is_within_distance(gr, x$geometry, dist = 0)
             gr_inds <- c(1:length(int))
             rm <- which(lengths(int) == 0)
             if(length(rm) > 0){
@@ -2893,7 +2893,7 @@ map_stream_depletions <- function(streams,
           grid_inds <- lapply(lines, function(x){
             #-------------------------------------------------------------------------------
             # intersect line between well and stream with the grid
-            int <- st_intersects(gr, x$geometry)
+            int <- st_is_within_distance(gr, x$geometry, dist = 0)
             gr_inds <- c(1:length(int))
             rm <- which(lengths(int) == 0)
             if(length(rm) > 0){
@@ -3298,7 +3298,7 @@ map_stream_depletions <- function(streams,
           grid_inds <- lapply(lines, function(x){
             #-------------------------------------------------------------------------------
             # intersect line between well and stream with the grid
-            int <- st_intersects(gr, x$geometry)
+            int <- st_is_within_distance(gr, x$geometry, dist = 0)
             gr_inds <- c(1:length(int))
             rm <- which(lengths(int) == 0)
             if(length(rm) > 0){
