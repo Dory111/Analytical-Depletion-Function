@@ -407,15 +407,16 @@ map_stream_depletions <- function(streams,
         z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
                                  (4*transmissivity*test_time))), prec = prec)
         t1 <- Rmpfr::erfc(z)
-        
+        t1[is.nan(t1) == TRUE] <- 0
         
         t2_a <- Rmpfr::mpfr(((lambda*lambda*test_time)/(4*stor_coef*transmissivity)),  prec = prec)
         t2_b <- Rmpfr::mpfr(((lambda*distance)/(2*transmissivity)), prec = prec)
         t2 <- base::exp(t2_a + t2_b)
-        
+        t2[is.nan(t2) == TRUE] <- 0
         
         t3_a <- Rmpfr::mpfr((sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity))),  prec = prec)
         t3 <- Rmpfr::erfc(t3_a + z)
+        t3[is.nan(t3) == TRUE] <- 0
         r <- sum(as.numeric(t1 - (t2*t3))*fracs)
         #-------------------------------------------------------------------------------
         
@@ -493,9 +494,11 @@ map_stream_depletions <- function(streams,
             # Testing between 0 and 1
             QA0 <- erfc(sqrt((stor_coef * distance**2)/
                                (4*transmissivity*0.001)))
+            QA0[is.nan(QA0) == TRUE] <- 0
             r0 <- sum(QA0*fracs)
             QA1 <- erfc(sqrt((stor_coef * distance**2)/
                                (4*transmissivity*1)))
+            QA1[is.nan(QA1) == TRUE] <- 0
             r1 <- sum(QA1*fracs)
             #-------------------------------------------------------------------------------
             
@@ -537,15 +540,16 @@ map_stream_depletions <- function(streams,
         z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
                                  (4*transmissivity*test_time))),  prec = prec)
         t1 <- Rmpfr::erfc(z)
-        
+        t1[is.nan(t1) == TRUE] <- 0
         
         t2_a <- Rmpfr::mpfr(((transmissivity*test_time)/(stor_coef*leakance*leakance)),  prec = prec)
         t2_b <- Rmpfr::mpfr((distance/leakance), prec = prec)
         t2 <- base::exp(t2_a + t2_b)
-        
+        t2[is.nan(t2) == TRUE] <- 0
         
         t3_a <- Rmpfr::mpfr((sqrt((transmissivity*test_time)/(stor_coef*leakance*leakance))),  prec = prec)
         t3 <- Rmpfr::erfc(t3_a + z)
+        t3[is.nan(t3) == TRUE] <- 0
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
@@ -628,9 +632,11 @@ map_stream_depletions <- function(streams,
             # Testing between 0 and 1
             QA0 <- erfc(sqrt((stor_coef * distance**2)/
                                (4*transmissivity*0.001)))
+            QA0[is.nan(QA0) == TRUE] <- 0
             r0 <- sum(QA0*fracs)
             QA1 <- erfc(sqrt((stor_coef * distance**2)/
                                (4*transmissivity*1)))
+            QA1[is.nan(QA1) == TRUE] <- 0
             r1 <- sum(QA1*fracs)
             #-------------------------------------------------------------------------------
             
@@ -658,7 +664,6 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
     
     
-    
 
     #-------------------------------------------------------------------------------
     # if hantush model is to be approximated by gradient descent
@@ -675,8 +680,27 @@ map_stream_depletions <- function(streams,
                         (4*transmissivity*test_time)))
         #-------------------------------------------------------------------------------
 
+        ######### Decided that if the model grid is undefined in enough locations
+        ######### that the sum of depletions can never reach the target
+        ######### the program should not correct that for the user
+        # #-------------------------------------------------------------------------------
+        # # attempt to reassign any NaN values if model grid not defined between
+        # # well and stream
+        # # last ditch effort so its very simple
+        # nan_inds <- which(is.nan(QA) == TRUE)
+        # if(length(nan_inds) == length(fracs)){
+        #   test_time <- -9999
+        #   r <- custom_sdf_time
+        # }
+        # sum_frac_naninds <- sum(fracs[nan_inds])
+        # reassign_frac <- distance[is.nan(QA) == FALSE]/sum(distance[is.nan(QA) == FALSE])
+        # reassign_frac <- sum_frac_naninds*reassign_frac
+        # fracs[is.nan(QA) == FALSE] <- fracs[is.nan(QA) == FALSE] + reassign_frac
+        # #-------------------------------------------------------------------------------
+        
         #-------------------------------------------------------------------------------
         # fill infinite indices with higher precision numbers
+        QA[is.nan(QA) == TRUE] <- 0
         r <- sum(QA*fracs)
         #-------------------------------------------------------------------------------
         
@@ -755,9 +779,11 @@ map_stream_depletions <- function(streams,
             # Testing between 0 and 1
             QA0 <- erfc(sqrt((stor_coef * distance**2)/
                               (4*transmissivity*0.001)))
+            QA0[is.nan(QA0) == TRUE] <- 0
             r0 <- sum(QA0*fracs)
             QA1 <- erfc(sqrt((stor_coef * distance**2)/
                                (4*transmissivity*1)))
+            QA1[is.nan(QA1) == TRUE] <- 0
             r1 <- sum(QA1*fracs)
             #-------------------------------------------------------------------------------
             
@@ -2486,7 +2512,7 @@ map_stream_depletions <- function(streams,
     }
     #-------------------------------------------------------------------------------
     
-    
+
     
     #-------------------------------------------------------------------------------
     depletions_potential_per_well <- list()
@@ -2699,12 +2725,12 @@ map_stream_depletions <- function(streams,
             
             #-------------------------------------------------------------------------------
             # what are the transmissivities of those grid cells
-            transmissivities <- lapply(1:length(grid_inds), function(i){
-              gr <- gr[grid_inds[[i]], ]
+            transmissivities <- lapply(1:length(grid_inds), function(k){
+              gr <- gr[grid_inds[[k]], ]
               mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
             })
-            storage_coefficients <- lapply(1:length(grid_inds), function(i){
-              gr <- gr[grid_inds[[i]], ]
+            storage_coefficients <- lapply(1:length(grid_inds), function(k){
+              gr <- gr[grid_inds[[k]], ]
               mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
             })
             #-------------------------------------------------------------------------------
@@ -2834,10 +2860,6 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
   }
   #-------------------------------------------------------------------------------
-  
-  
-  
-  
   
   
   
