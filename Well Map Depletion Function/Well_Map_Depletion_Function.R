@@ -2421,7 +2421,7 @@ map_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
       }
       #-------------------------------------------------------------------------------
-
+      
       #-------------------------------------------------------------------------------
       # what are the closest points to each well
       points <- as.vector(unlist(closest_points_per_segment[i, ]))
@@ -2486,14 +2486,19 @@ map_stream_depletions <- function(streams,
             lines[[j]] <- line
           }
           #-------------------------------------------------------------------------------
-          
+
           #-------------------------------------------------------------------------------
           # selecting correct gridcells
           grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
           well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
           gr <- model_grid[grid_layers == well_layers[i], ]
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
           if(str_to_title(proximity_criteria) %in% c('Local Area',
                                                      'Expanding')){
+            #-------------------------------------------------------------------------------
+            # simple buffer intersect
             int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
             gr_rad <- c(1:length(int))
             rm <- which(lengths(int) == 0)
@@ -2501,8 +2506,96 @@ map_stream_depletions <- function(streams,
               gr_rad <- gr_rad[-c(rm)]
             } else {}
             gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # selecting correct gridcells
+          if(str_to_title(proximity_criteria) %in% c('Adjacent')){
+            #-------------------------------------------------------------------------------
+            # check which subwatershed its within
+            well_intersect_indices <- st_intersects(subwatersheds,
+                                                    wells[i, ])
+            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+            if(length(rm_empty_intersections) > 0){
+              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+            } else {
+              well_intersect_indices <- c(1:length(well_intersect_indices))
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # check which subwatershed touches original subwatershed
+            subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                       subwatersheds[well_intersect_indices, ])
+            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+            
+            if(length(subwatershed_touches_indices) > 0){
+              well_intersect_indices <- append(well_intersect_indices,
+                                               subwatershed_touches_indices)
+            } else {}
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
+            gr_rad <- c(1:length(int))
+            rm <- which(lengths(int) == 0)
+            if(length(rm) > 0){
+              gr_rad <- gr_rad[-c(rm)]
+            } else {}
+            gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # selecting correct gridcells
+          if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
+            #-------------------------------------------------------------------------------
+            # check which subwatershed its within
+            well_intersect_indices <- st_intersects(subwatersheds,
+                                                    wells[i, ])
+            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+            if(length(rm_empty_intersections) > 0){
+              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+            } else {
+              well_intersect_indices <- c(1:length(well_intersect_indices))
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # check which subwatershed touches original subwatershed
+            subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                       subwatersheds[well_intersect_indices, ])
+            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+            
+            if(length(subwatershed_touches_indices) > 0){
+              well_intersect_indices <- append(well_intersect_indices,
+                                               subwatershed_touches_indices)
+            } else {}
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
+                                                    st_buffer(wells[i, ], influence_radius))
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
+            gr_rad <- c(1:length(int))
+            rm <- which(lengths(int) == 0)
+            if(length(rm) > 0){
+              gr_rad <- gr_rad[-c(rm)]
+            } else {}
+            gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
           
           #-------------------------------------------------------------------------------
           # selecting which gridcells intersect linestrings
@@ -2572,10 +2665,8 @@ map_stream_depletions <- function(streams,
         }
         #-------------------------------------------------------------------------------
       }
-
     }
     #-------------------------------------------------------------------------------
-
     
     #-------------------------------------------------------------------------------
     # stats
@@ -2890,8 +2981,13 @@ map_stream_depletions <- function(streams,
           grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
           well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
           gr <- model_grid[grid_layers == well_layers[i], ]
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
           if(str_to_title(proximity_criteria) %in% c('Local Area',
                                                      'Expanding')){
+            #-------------------------------------------------------------------------------
+            # simple buffer intersect
             int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
             gr_rad <- c(1:length(int))
             rm <- which(lengths(int) == 0)
@@ -2899,6 +2995,93 @@ map_stream_depletions <- function(streams,
               gr_rad <- gr_rad[-c(rm)]
             } else {}
             gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # selecting correct gridcells
+          if(str_to_title(proximity_criteria) %in% c('Adjacent')){
+            #-------------------------------------------------------------------------------
+            # check which subwatershed its within
+            well_intersect_indices <- st_intersects(subwatersheds,
+                                                    wells[i, ])
+            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+            if(length(rm_empty_intersections) > 0){
+              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+            } else {
+              well_intersect_indices <- c(1:length(well_intersect_indices))
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # check which subwatershed touches original subwatershed
+            subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                       subwatersheds[well_intersect_indices, ])
+            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+            
+            if(length(subwatershed_touches_indices) > 0){
+              well_intersect_indices <- append(well_intersect_indices,
+                                               subwatershed_touches_indices)
+            } else {}
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
+            gr_rad <- c(1:length(int))
+            rm <- which(lengths(int) == 0)
+            if(length(rm) > 0){
+              gr_rad <- gr_rad[-c(rm)]
+            } else {}
+            gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # selecting correct gridcells
+          if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
+            #-------------------------------------------------------------------------------
+            # check which subwatershed its within
+            well_intersect_indices <- st_intersects(subwatersheds,
+                                                    wells[i, ])
+            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+            if(length(rm_empty_intersections) > 0){
+              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+            } else {
+              well_intersect_indices <- c(1:length(well_intersect_indices))
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # check which subwatershed touches original subwatershed
+            subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                       subwatersheds[well_intersect_indices, ])
+            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+            
+            if(length(subwatershed_touches_indices) > 0){
+              well_intersect_indices <- append(well_intersect_indices,
+                                               subwatershed_touches_indices)
+            } else {}
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
+                                                    st_buffer(wells[i, ], influence_radius))
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
+            gr_rad <- c(1:length(int))
+            rm <- which(lengths(int) == 0)
+            if(length(rm) > 0){
+              gr_rad <- gr_rad[-c(rm)]
+            } else {}
+            gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
           
@@ -3305,8 +3488,13 @@ map_stream_depletions <- function(streams,
           grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
           well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
           gr <- model_grid[grid_layers == well_layers[i], ]
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
           if(str_to_title(proximity_criteria) %in% c('Local Area',
                                                      'Expanding')){
+            #-------------------------------------------------------------------------------
+            # simple buffer intersect
             int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
             gr_rad <- c(1:length(int))
             rm <- which(lengths(int) == 0)
@@ -3314,6 +3502,93 @@ map_stream_depletions <- function(streams,
               gr_rad <- gr_rad[-c(rm)]
             } else {}
             gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # selecting correct gridcells
+          if(str_to_title(proximity_criteria) %in% c('Adjacent')){
+            #-------------------------------------------------------------------------------
+            # check which subwatershed its within
+            well_intersect_indices <- st_intersects(subwatersheds,
+                                                    wells[i, ])
+            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+            if(length(rm_empty_intersections) > 0){
+              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+            } else {
+              well_intersect_indices <- c(1:length(well_intersect_indices))
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # check which subwatershed touches original subwatershed
+            subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                       subwatersheds[well_intersect_indices, ])
+            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+            
+            if(length(subwatershed_touches_indices) > 0){
+              well_intersect_indices <- append(well_intersect_indices,
+                                               subwatershed_touches_indices)
+            } else {}
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
+            gr_rad <- c(1:length(int))
+            rm <- which(lengths(int) == 0)
+            if(length(rm) > 0){
+              gr_rad <- gr_rad[-c(rm)]
+            } else {}
+            gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # selecting correct gridcells
+          if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
+            #-------------------------------------------------------------------------------
+            # check which subwatershed its within
+            well_intersect_indices <- st_intersects(subwatersheds,
+                                                    wells[i, ])
+            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+            if(length(rm_empty_intersections) > 0){
+              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+            } else {
+              well_intersect_indices <- c(1:length(well_intersect_indices))
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # check which subwatershed touches original subwatershed
+            subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                       subwatersheds[well_intersect_indices, ])
+            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+            
+            if(length(subwatershed_touches_indices) > 0){
+              well_intersect_indices <- append(well_intersect_indices,
+                                               subwatershed_touches_indices)
+            } else {}
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
+                                                    st_buffer(wells[i, ], influence_radius))
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
+            gr_rad <- c(1:length(int))
+            rm <- which(lengths(int) == 0)
+            if(length(rm) > 0){
+              gr_rad <- gr_rad[-c(rm)]
+            } else {}
+            gr <- gr[gr_rad, ]
+            #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
           
