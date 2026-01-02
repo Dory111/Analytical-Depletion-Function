@@ -985,7 +985,7 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # formatting output
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     wells$ImpLMet <- as.vector(impacted_length)
     out <- cbind(w_index, impacted_points)
     colnames(out) <- c('wellN',
@@ -1133,7 +1133,7 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # formatting output
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     wells$ImpLMet <- as.vector(impacted_length)
     out <- cbind(w_index, impacted_points)
     colnames(out) <- c('wellN',
@@ -1241,7 +1241,7 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # formatting output
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     wells$ImpLMet <- as.vector(impacted_length)
     out <- cbind(w_index, impacted_points)
     colnames(out) <- c('wellN',
@@ -1320,7 +1320,7 @@ map_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # formatting output
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     wells$ImpLMet <- as.vector(impacted_length)
     out <- cbind(w_index, impacted_points)
     colnames(out) <- c('wellN',
@@ -1647,13 +1647,13 @@ map_stream_depletions <- function(streams,
     wm <- which(fractions_of_depletions == max_dep, arr.ind = TRUE)
     
     reach_max_dep <- reaches[wm]
-    well_max_dep <- as.vector(unlist(st_drop_geometry(wells[wm[,1],wells_id_key])))
+    well_max_dep <- as.vector(unlist(st_drop_geometry(wells[wm[,1],well_id_key])))
     #-------------------------------------------------------------------------------
     
 
     #-------------------------------------------------------------------------------
     # format writeout pt 2
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     fractions_of_depletions <- cbind(w_index, fractions_of_depletions)
     fractions_of_depletions <- as.data.frame(fractions_of_depletions)
     colnames(fractions_of_depletions) <- c('wellN',
@@ -2011,13 +2011,13 @@ map_stream_depletions <- function(streams,
     wm <- which(fractions_of_depletions == max_dep, arr.ind = TRUE)
     
     reach_max_dep <- reaches[wm]
-    well_max_dep <- as.vector(unlist(st_drop_geometry(wells[wm[,1],wells_id_key])))
+    well_max_dep <- as.vector(unlist(st_drop_geometry(wells[wm[,1],well_id_key])))
     #-------------------------------------------------------------------------------
     
     
     #-------------------------------------------------------------------------------
     # format writeout pt 2
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     fractions_of_depletions <- cbind(w_index, fractions_of_depletions)
     fractions_of_depletions <- as.data.frame(fractions_of_depletions)
     colnames(fractions_of_depletions) <- c('wellN',
@@ -2311,13 +2311,13 @@ map_stream_depletions <- function(streams,
     wm <- which(fractions_of_depletions == max_dep, arr.ind = TRUE)
     
     reach_max_dep <- reaches[wm]
-    well_max_dep <- as.vector(unlist(st_drop_geometry(wells[wm[,1],wells_id_key])))
+    well_max_dep <- as.vector(unlist(st_drop_geometry(wells[wm[,1],well_id_key])))
     #-------------------------------------------------------------------------------
     
     
     #-------------------------------------------------------------------------------
     # format writeout pt 2
-    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+    w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
     fractions_of_depletions <- cbind(w_index, fractions_of_depletions)
     fractions_of_depletions <- as.data.frame(fractions_of_depletions)
     colnames(fractions_of_depletions) <- c('wellN',
@@ -3809,8 +3809,8 @@ map_stream_depletions <- function(streams,
                                         geometry_list = list(wells))
       wells <- proj_output[[1]]
       
-      wells_id_key <- 'ID'
-      wells[,wells_id_key] <- c(1:nrow(wells))
+      well_id_key <- 'ID'
+      wells[,well_id_key] <- c(1:nrow(wells))
       #-------------------------------------------------------------------------------
     } 
     #-------------------------------------------------------------------------------
@@ -3910,7 +3910,7 @@ map_stream_depletions <- function(streams,
                                         geometry_list = list(wells))
       wells <- proj_output[[1]]
       wells[,well_layer_key] <- well_layer
-      wells[,wells_id_key] <- c(1:nrow(wells))
+      wells[,well_id_key] <- c(1:nrow(wells))
       #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
@@ -4211,7 +4211,7 @@ map_stream_depletions <- function(streams,
                                                    'Web',
                                                    'Web Squared')){
       
-      w_index <- as.vector(unlist(st_drop_geometry(wells[ ,wells_id_key])))
+      w_index <- as.vector(unlist(st_drop_geometry(wells[ ,well_id_key])))
       closest_points_per_segment <- find_closest_points_per_segment(wells = wells,
                                                                     stream_points_geometry = stream_points_geometry,
                                                                     stream_id_key = stream_id_key)
@@ -4911,7 +4911,7 @@ map_stream_depletions <- function(streams,
       stream_id_key <- 'ID'
       streams$ID <- c(1:nrow(streams))
     } else {}
-    wells_id_key <- 'ID'
+    well_id_key <- 'ID'
     output <- find_impacted_stream_segments(streams,
                                             wells,
                                             subwatersheds,
@@ -5134,7 +5134,6 @@ map_stream_depletions <- function(streams,
   
   ############################################################################################
   # run calculate depletions
-  
   #-------------------------------------------------------------------------------
   # capture any error output and write to log file
   tryCatch(expr = {
@@ -5216,7 +5215,6 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
   })
   #-------------------------------------------------------------------------------
-  
   
   #-------------------------------------------------------------------------------
   # close log file
