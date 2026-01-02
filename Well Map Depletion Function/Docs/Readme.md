@@ -101,9 +101,16 @@ the closest dimensions that fit completely within the bounding box.
 <br/> <br/> <b><font size = "3">well_crs</font></b>: *char* default
 *NULL*, describes the crs of the grid extent. Only necessary if no
 argument is passed to *wells* and the extent and cellsize are being used
-instead. <br/> <br/> <b><font size = "3">custom_sdf_time</font></b>:
-*numeric* default *NULL*, describes whether to find the time when the
-depletions in reaches ‘r’ equal the pumping in well ‘w’ multiplied by
+instead. <br/> <br/> <b><font size = "3">clip_by_basin</font></b>:
+*boolean* default *FALSE*, describes whether to calculate depletions
+only within the groundwater basin specified by the user. <br/> <br/>
+<b><font size = "3">basin</font></b>: *sf object* default *NULL*,
+describes the basin within which wells have depletions calculated.
+Outside the basin well depletions are set to 0 at every timestep, and
+the *custom_sdf_time* at that well is returned as *NA*. <br/> <br/>
+<b><font size = "3">custom_sdf_time</font></b>: *numeric* default
+*NULL*, describes whether to find the time when the depletions in
+reaches ‘r’ equal the pumping in well ‘w’ multiplied by
 *custom_sdf_time*. Accepts any number, but recommended to chose between
 0.1 and 0.9. If set to *NULL* no calculations are done. If time cannot
 be determined within *n_sdf_covergence_tries* -9999 is returned for that

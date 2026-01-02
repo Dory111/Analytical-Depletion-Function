@@ -20,6 +20,8 @@ map_stream_depletions <- function(streams,
                                   well_layer = NULL,
                                   wells = NULL,
                                   well_crs = NULL,
+                                  clip_by_basin = FALSE,
+                                  basin = NULL,
                                   pumping,
                                   model_grid = NULL,
                                   grid_layer_key = 'lay',
@@ -2404,6 +2406,86 @@ map_stream_depletions <- function(streams,
     }
     #-------------------------------------------------------------------------------
     
+    #-------------------------------------------------------------------------------
+    if(clip_by_basin == TRUE){
+      if(wells_initially_null == FALSE){
+        int <- st_intersects(wells,
+                             b118)
+        wells_within_basin <- c(1:length(int))
+        rm <- which(lengths(int) == 0)
+        if(length(rm) > 0){
+          wells_within_basin <- wells_within_basin[-c(rm)]
+        } else {}
+      } else {
+        #-------------------------------------------------------------------------------
+        # Null dataframe to map onto
+        df <- as.data.frame(matrix(nrow = 1, ncol = 3))
+        colnames(df) <- c('Buff','Lon','Lat')
+        df$Lon[1] <- -119
+        df$Lat[1] <- 42
+        if(is.null(well_crs) == TRUE){
+          df <- st_as_sf(df,
+                         coords = c('Lon','Lat'),
+                         crs = 4326)
+          df <- st_transform(df, st_crs(streams))
+        } else {
+          df <- st_as_sf(df,
+                         coords = c('Lon','Lat'),
+                         crs = 4326)
+          df <- st_transform(df, well_crs)
+        }
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        x_coords <- c(as.numeric(well_grid_ext[1]),
+                      as.numeric(well_grid_ext[1]),
+                      as.numeric(well_grid_ext[3]),
+                      as.numeric(well_grid_ext[3]),
+                      as.numeric(well_grid_ext[1]))
+        y_coords <- c(as.numeric(well_grid_ext[2]),
+                      as.numeric(well_grid_ext[4]),
+                      as.numeric(well_grid_ext[4]),
+                      as.numeric(well_grid_ext[2]),
+                      as.numeric(well_grid_ext[2]))
+        df$geometry[1] <- st_polygon(list(cbind(x_coords,
+                                                y_coords)))
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        # making wells getting grid dimensions
+        w_gr <- st_make_grid(df,
+                             cellsize = well_grid_cellsize)
+        w_gr <- st_centroid(w_gr)
+        w_gr <- st_sf(w_gr)
+        st_geometry(w_gr) <- 'geometry'
+        coords <- st_coordinates(w_gr)
+        ncol_well_grid <- rle(as.character(coords[,2]))$lengths[1]
+        nrow_well_grid <- nrow(wells)/ncol_well_grid
+        #-------------------------------------------------------------------------------
+        
+        
+        #-------------------------------------------------------------------------------
+        # using the dimensions of st_make_grid() to choose
+        # the nearest cellsize that fits completely within the bounding box
+        w_gr <- st_make_grid(df,
+                             n = c(ncol_well_grid, nrow_well_grid))
+        w_gr <- st_sf(w_gr)
+        st_geometry(w_gr) <- 'geometry'
+        #-------------------------------------------------------------------------------
+        
+        int <- st_intersects(w_gr,
+                             b118)
+        wells_within_basin <- c(1:length(int))
+        rm <- which(lengths(int) == 0)
+        if(length(rm) > 0){
+          wells_within_basin <- wells_within_basin[-c(rm)]
+        } else {}
+      }
+    } else {
+      wells_within_basin <- c(1:nrow(wells))
+    }
+    #-------------------------------------------------------------------------------
+    
     
     
     #-------------------------------------------------------------------------------
@@ -2423,239 +2505,251 @@ map_stream_depletions <- function(streams,
       #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
-      # what are the closest points to each well
-      points <- as.vector(unlist(closest_points_per_segment[i, ]))
-      fracs <- as.vector(unlist(reach_impact_frac[i, ]))
-      reach_indices <- c(1:length(points))
-      rm <- which(is.na(points))
-      #-------------------------------------------------------------------------------
-
-      #-------------------------------------------------------------------------------
-      # if no wells are associated with the reach then pass
-      if(all(is.na(points) == TRUE) == FALSE){
+      # is it worth calculating
+      if(i %in% wells_within_basin){
         #-------------------------------------------------------------------------------
-        # remove any non-relevant wells from the for loop
-        if(length(rm) > 0){
-          reach_indices <- reach_indices[-c(rm)]
-        } else {}
-        #-------------------------------------------------------------------------------
-
-        #-------------------------------------------------------------------------------
-        # starting values
-        depletions_potential_per_well_per_reach <- list()
-        distances <- list()
-        transmissivities <- list()
-        storage_coefficients <- list()
-        points <- points[reach_indices]
+        # what are the closest points to each well
+        points <- as.vector(unlist(closest_points_per_segment[i, ]))
+        fracs <- as.vector(unlist(reach_impact_frac[i, ]))
+        reach_indices <- c(1:length(points))
+        rm <- which(is.na(points))
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        # calculating distances
-        distance <- st_distance(wells[i, ],
-                                stream_points_geometry[points, ])
-        distance <- as.numeric(distance)
-        distances[1:length(distance)] <- as.list(distance)
-        #-------------------------------------------------------------------------------
-        
-        
-        #-------------------------------------------------------------------------------
-        # get aquifer properties depending on if its assigned on a per-well basis
-        # or if its going to be taken as an average of the aquifer properties along a line
-        # between the well and the nearest stream
-        if(is.null(model_grid) == TRUE){
-          transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
-          stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
-          transmissivities[1:length(distance)] <- transmissivity
-          storage_coefficients[1:length(distance)] <- stor_coef
+        # if no wells are associated with the reach then pass
+        if(all(is.na(points) == TRUE) == FALSE){
+          #-------------------------------------------------------------------------------
+          # remove any non-relevant wells from the for loop
+          if(length(rm) > 0){
+            reach_indices <- reach_indices[-c(rm)]
+          } else {}
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # starting values
+          depletions_potential_per_well_per_reach <- list()
+          distances <- list()
+          transmissivities <- list()
+          storage_coefficients <- list()
+          points <- points[reach_indices]
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # calculating distances
+          distance <- st_distance(wells[i, ],
+                                  stream_points_geometry[points, ])
+          distance <- as.numeric(distance)
+          distances[1:length(distance)] <- as.list(distance)
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # get aquifer properties depending on if its assigned on a per-well basis
+          # or if its going to be taken as an average of the aquifer properties along a line
+          # between the well and the nearest stream
+          if(is.null(model_grid) == TRUE){
+            transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
+            stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
+            transmissivities[1:length(distance)] <- transmissivity
+            storage_coefficients[1:length(distance)] <- stor_coef
+          } else {
+            #-------------------------------------------------------------------------------
+            # making linestrings between each well and each reach
+            lines <- list()
+            for(j in 1:length(points)){
+              #-------------------------------------------------------------------------------
+              # make line between well and stream
+              m <- matrix(c(st_coordinates(wells[i, ])[,1],
+                            st_coordinates(wells[i, ])[,2],
+                            st_coordinates(stream_points_geometry[points[j], ])[,1],
+                            st_coordinates(stream_points_geometry[points[j], ])[,2]),
+                          ncol = 2,
+                          byrow = TRUE)
+              line <- st_sf(st_sfc(st_linestring(m), crs = st_crs(wells)))
+              st_geometry(line) <- 'geometry'
+              #-------------------------------------------------------------------------------
+              lines[[j]] <- line
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
+            well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
+            gr <- model_grid[grid_layers == well_layers[i], ]
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            if(str_to_title(proximity_criteria) %in% c('Local Area',
+                                                       'Expanding')){
+              #-------------------------------------------------------------------------------
+              # simple buffer intersect
+              int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            if(str_to_title(proximity_criteria) %in% c('Adjacent')){
+              #-------------------------------------------------------------------------------
+              # check which subwatershed its within
+              well_intersect_indices <- st_intersects(subwatersheds,
+                                                      wells[i, ])
+              rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+              if(length(rm_empty_intersections) > 0){
+                well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+              } else {
+                well_intersect_indices <- c(1:length(well_intersect_indices))
+              }
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              # check which subwatershed touches original subwatershed
+              subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                         subwatersheds[well_intersect_indices, ])
+              subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+              subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+              
+              if(length(subwatershed_touches_indices) > 0){
+                well_intersect_indices <- append(well_intersect_indices,
+                                                 subwatershed_touches_indices)
+              } else {}
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
+              #-------------------------------------------------------------------------------
+              # check which subwatershed its within
+              well_intersect_indices <- st_intersects(subwatersheds,
+                                                      wells[i, ])
+              rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+              if(length(rm_empty_intersections) > 0){
+                well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+              } else {
+                well_intersect_indices <- c(1:length(well_intersect_indices))
+              }
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              # check which subwatershed touches original subwatershed
+              subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                         subwatersheds[well_intersect_indices, ])
+              subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+              subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+              
+              if(length(subwatershed_touches_indices) > 0){
+                well_intersect_indices <- append(well_intersect_indices,
+                                                 subwatershed_touches_indices)
+              } else {}
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
+                                                      st_buffer(wells[i, ], influence_radius))
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            
+            #-------------------------------------------------------------------------------
+            # selecting which gridcells intersect linestrings
+            grid_inds <- lapply(lines, function(x){
+              #-------------------------------------------------------------------------------
+              # intersect line between well and stream with the grid
+              int <- st_is_within_distance(gr, x$geometry, dist = 0)
+              gr_inds <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_inds <- gr_inds[-c(rm)]
+              } else {}
+              #-------------------------------------------------------------------------------
+            })
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # what are the transmissivities of those grid cells
+            transmissivities <- lapply(1:length(grid_inds), function(i){
+              gr <- gr[grid_inds[[i]], ]
+              mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
+            })
+            storage_coefficients <- lapply(1:length(grid_inds), function(i){
+              gr <- gr[grid_inds[[i]], ]
+              mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+            })
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # using information to calculate depletions at each well
+          for(j in 1:length(reach_indices)){
+            Q_out <- glover_stream_depletion_model(stor_coef = storage_coefficients[[j]],
+                                                   transmissivity = transmissivities[[j]],
+                                                   distance = distances[[j]],
+                                                   QW = pumping)
+            Q_fraction <- Q_out[[1]] * fracs[reach_indices[j]]
+            depletions_potential_per_well_per_reach[[j]] <- Q_fraction
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
+          depletions_total[is.na(depletions_total) == TRUE] <- 0
+          depletions_total <- base::colSums(depletions_total)
+          depletions_potential_per_well[[i]] <- depletions_total
+          #-------------------------------------------------------------------------------
+          
+          # -------------------------------------------------------------------------------
+          if(is.null(custom_sdf_time) == FALSE){
+            custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
+                                                      distance = as.vector(unlist(distances)),
+                                                      stor_coef = as.vector(unlist(storage_coefficients)),
+                                                      transmissivity = as.vector(unlist(transmissivities)),
+                                                      custom_sdf_time = custom_sdf_time,
+                                                      fracs = fracs[reach_indices])
+            custom_sdf_per_well[[i]] <- custom_SDF
+          }
+          # -------------------------------------------------------------------------------
         } else {
           #-------------------------------------------------------------------------------
-          # making linestrings between each well and each reach
-          lines <- list()
-          for(j in 1:length(points)){
-            #-------------------------------------------------------------------------------
-            # make line between well and stream
-            m <- matrix(c(st_coordinates(wells[i, ])[,1],
-                          st_coordinates(wells[i, ])[,2],
-                          st_coordinates(stream_points_geometry[points[j], ])[,1],
-                          st_coordinates(stream_points_geometry[points[j], ])[,2]),
-                        ncol = 2,
-                        byrow = TRUE)
-            line <- st_sf(st_sfc(st_linestring(m), crs = st_crs(wells)))
-            st_geometry(line) <- 'geometry'
-            #-------------------------------------------------------------------------------
-            lines[[j]] <- line
+          depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
+          
+          if(is.null(custom_sdf_time) == FALSE){
+            custom_sdf_per_well[[i]] <- NA
           }
-          #-------------------------------------------------------------------------------
-
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
-          well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
-          gr <- model_grid[grid_layers == well_layers[i], ]
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          if(str_to_title(proximity_criteria) %in% c('Local Area',
-                                                     'Expanding')){
-            #-------------------------------------------------------------------------------
-            # simple buffer intersect
-            int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          if(str_to_title(proximity_criteria) %in% c('Adjacent')){
-            #-------------------------------------------------------------------------------
-            # check which subwatershed its within
-            well_intersect_indices <- st_intersects(subwatersheds,
-                                                    wells[i, ])
-            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
-            if(length(rm_empty_intersections) > 0){
-              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
-            } else {
-              well_intersect_indices <- c(1:length(well_intersect_indices))
-            }
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            # check which subwatershed touches original subwatershed
-            subwatershed_touches_indices <- st_touches(subwatersheds,
-                                                       subwatersheds[well_intersect_indices, ])
-            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
-            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
-            
-            if(length(subwatershed_touches_indices) > 0){
-              well_intersect_indices <- append(well_intersect_indices,
-                                               subwatershed_touches_indices)
-            } else {}
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
-            #-------------------------------------------------------------------------------
-            # check which subwatershed its within
-            well_intersect_indices <- st_intersects(subwatersheds,
-                                                    wells[i, ])
-            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
-            if(length(rm_empty_intersections) > 0){
-              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
-            } else {
-              well_intersect_indices <- c(1:length(well_intersect_indices))
-            }
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            # check which subwatershed touches original subwatershed
-            subwatershed_touches_indices <- st_touches(subwatersheds,
-                                                       subwatersheds[well_intersect_indices, ])
-            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
-            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
-            
-            if(length(subwatershed_touches_indices) > 0){
-              well_intersect_indices <- append(well_intersect_indices,
-                                               subwatershed_touches_indices)
-            } else {}
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
-                                                    st_buffer(wells[i, ], influence_radius))
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          
-          #-------------------------------------------------------------------------------
-          # selecting which gridcells intersect linestrings
-          grid_inds <- lapply(lines, function(x){
-            #-------------------------------------------------------------------------------
-            # intersect line between well and stream with the grid
-            int <- st_is_within_distance(gr, x$geometry, dist = 0)
-            gr_inds <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_inds <- gr_inds[-c(rm)]
-            } else {}
-            #-------------------------------------------------------------------------------
-          })
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # what are the transmissivities of those grid cells
-          transmissivities <- lapply(1:length(grid_inds), function(i){
-            gr <- gr[grid_inds[[i]], ]
-            mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
-          })
-          storage_coefficients <- lapply(1:length(grid_inds), function(i){
-            gr <- gr[grid_inds[[i]], ]
-            mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
-          })
           #-------------------------------------------------------------------------------
         }
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # using information to calculate depletions at each well
-        for(j in 1:length(reach_indices)){
-          Q_out <- glover_stream_depletion_model(stor_coef = storage_coefficients[[j]],
-                                                 transmissivity = transmissivities[[j]],
-                                                 distance = distances[[j]],
-                                                 QW = pumping)
-          Q_fraction <- Q_out[[1]] * fracs[reach_indices[j]]
-          depletions_potential_per_well_per_reach[[j]] <- Q_fraction
-        }
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
-        depletions_total[is.na(depletions_total) == TRUE] <- 0
-        depletions_total <- base::colSums(depletions_total)
-        depletions_potential_per_well[[i]] <- depletions_total
-        #-------------------------------------------------------------------------------
-        
-        # -------------------------------------------------------------------------------
-        if(is.null(custom_sdf_time) == FALSE){
-          custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
-                                                    distance = as.vector(unlist(distances)),
-                                                    stor_coef = as.vector(unlist(storage_coefficients)),
-                                                    transmissivity = as.vector(unlist(transmissivities)),
-                                                    custom_sdf_time = custom_sdf_time,
-                                                    fracs = fracs[reach_indices])
-          custom_sdf_per_well[[i]] <- custom_SDF
-        }
-        # -------------------------------------------------------------------------------
       } else {
         #-------------------------------------------------------------------------------
         depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
@@ -2665,6 +2759,7 @@ map_stream_depletions <- function(streams,
         }
         #-------------------------------------------------------------------------------
       }
+      #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
     
@@ -2889,7 +2984,85 @@ map_stream_depletions <- function(streams,
     }
     #-------------------------------------------------------------------------------
     
-    
+    #-------------------------------------------------------------------------------
+    if(clip_by_basin == TRUE){
+      if(wells_initially_null == FALSE){
+        int <- st_intersects(wells,
+                             b118)
+        wells_within_basin <- c(1:length(int))
+        rm <- which(lengths(int) == 0)
+        if(length(rm) > 0){
+          wells_within_basin <- wells_within_basin[-c(rm)]
+        } else {}
+      } else {
+        #-------------------------------------------------------------------------------
+        # Null dataframe to map onto
+        df <- as.data.frame(matrix(nrow = 1, ncol = 3))
+        colnames(df) <- c('Buff','Lon','Lat')
+        df$Lon[1] <- -119
+        df$Lat[1] <- 42
+        if(is.null(well_crs) == TRUE){
+          df <- st_as_sf(df,
+                         coords = c('Lon','Lat'),
+                         crs = 4326)
+          df <- st_transform(df, st_crs(streams))
+        } else {
+          df <- st_as_sf(df,
+                         coords = c('Lon','Lat'),
+                         crs = 4326)
+          df <- st_transform(df, well_crs)
+        }
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        x_coords <- c(as.numeric(well_grid_ext[1]),
+                      as.numeric(well_grid_ext[1]),
+                      as.numeric(well_grid_ext[3]),
+                      as.numeric(well_grid_ext[3]),
+                      as.numeric(well_grid_ext[1]))
+        y_coords <- c(as.numeric(well_grid_ext[2]),
+                      as.numeric(well_grid_ext[4]),
+                      as.numeric(well_grid_ext[4]),
+                      as.numeric(well_grid_ext[2]),
+                      as.numeric(well_grid_ext[2]))
+        df$geometry[1] <- st_polygon(list(cbind(x_coords,
+                                                y_coords)))
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        # making wells getting grid dimensions
+        w_gr <- st_make_grid(df,
+                             cellsize = well_grid_cellsize)
+        w_gr <- st_centroid(w_gr)
+        w_gr <- st_sf(w_gr)
+        st_geometry(w_gr) <- 'geometry'
+        coords <- st_coordinates(w_gr)
+        ncol_well_grid <- rle(as.character(coords[,2]))$lengths[1]
+        nrow_well_grid <- nrow(wells)/ncol_well_grid
+        #-------------------------------------------------------------------------------
+        
+        
+        #-------------------------------------------------------------------------------
+        # using the dimensions of st_make_grid() to choose
+        # the nearest cellsize that fits completely within the bounding box
+        w_gr <- st_make_grid(df,
+                             n = c(ncol_well_grid, nrow_well_grid))
+        w_gr <- st_sf(w_gr)
+        st_geometry(w_gr) <- 'geometry'
+        #-------------------------------------------------------------------------------
+        
+        int <- st_intersects(w_gr,
+                             b118)
+        wells_within_basin <- c(1:length(int))
+        rm <- which(lengths(int) == 0)
+        if(length(rm) > 0){
+          wells_within_basin <- wells_within_basin[-c(rm)]
+        } else {}
+      }
+    } else {
+      wells_within_basin <- c(1:nrow(wells))
+    }
+    #-------------------------------------------------------------------------------
     
     
     #-------------------------------------------------------------------------------
@@ -2907,257 +3080,269 @@ map_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
       }
       #-------------------------------------------------------------------------------
-
-      #-------------------------------------------------------------------------------
-      # what are the closest points to each well
-      points <- as.vector(unlist(closest_points_per_segment[i, ]))
-      fracs <- as.vector(unlist(reach_impact_frac[i, ]))
-      reach_indices <- c(1:length(points))
-      rm <- which(is.na(points))
-      #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
-      # if no wells are associated with the reach then pass
-      if(all(is.na(points) == TRUE) == FALSE){
+      # is it worth calculating
+      if(i %in% wells_within_basin){
         #-------------------------------------------------------------------------------
-        # remove any non-relevant wells from the for loop
-        if(length(rm) > 0){
-          reach_indices <- reach_indices[-c(rm)]
-        } else {}
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # starting values
-        depletions_potential_per_well_per_reach <- list()
-        distances <- list()
-        transmissivities <- list()
-        storage_coefficients <- list()
-        lambdas <- list()
-        points <- points[reach_indices]
-        RN <- st_drop_geometry(stream_points_geometry[points, stream_id_key])
-        RN <- as.vector(unlist(RN))
+        # what are the closest points to each well
+        points <- as.vector(unlist(closest_points_per_segment[i, ]))
+        fracs <- as.vector(unlist(reach_impact_frac[i, ]))
+        reach_indices <- c(1:length(points))
+        rm <- which(is.na(points))
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        # calculating distances
-        distance <- st_distance(wells[i, ],
-                                stream_points_geometry[points, ])
-        distance <- as.numeric(distance)
-        distances[1:length(distance)] <- as.list(distance)
-        #-------------------------------------------------------------------------------
-        
-        
-        #-------------------------------------------------------------------------------
-        # get aquifer properties depending on if its assigned on a per-well basis
-        # or if its going to be taken as an average of the aquifer properties along a line
-        # between the well and the nearest stream
-        if(is.null(model_grid) == TRUE){
-          transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
-          stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
-          transmissivities[1:length(distance)] <- transmissivity
-          storage_coefficients[1:length(distance)] <- stor_coef
+        # if no wells are associated with the reach then pass
+        if(all(is.na(points) == TRUE) == FALSE){
+          #-------------------------------------------------------------------------------
+          # remove any non-relevant wells from the for loop
+          if(length(rm) > 0){
+            reach_indices <- reach_indices[-c(rm)]
+          } else {}
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # starting values
+          depletions_potential_per_well_per_reach <- list()
+          distances <- list()
+          transmissivities <- list()
+          storage_coefficients <- list()
+          lambdas <- list()
+          points <- points[reach_indices]
+          RN <- st_drop_geometry(stream_points_geometry[points, stream_id_key])
+          RN <- as.vector(unlist(RN))
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # calculating distances
+          distance <- st_distance(wells[i, ],
+                                  stream_points_geometry[points, ])
+          distance <- as.numeric(distance)
+          distances[1:length(distance)] <- as.list(distance)
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # get aquifer properties depending on if its assigned on a per-well basis
+          # or if its going to be taken as an average of the aquifer properties along a line
+          # between the well and the nearest stream
+          if(is.null(model_grid) == TRUE){
+            transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
+            stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
+            transmissivities[1:length(distance)] <- transmissivity
+            storage_coefficients[1:length(distance)] <- stor_coef
+          } else {
+            #-------------------------------------------------------------------------------
+            # making linestrings between each well and each reach
+            lines <- list()
+            for(j in 1:length(points)){
+              #-------------------------------------------------------------------------------
+              # make line between well and stream
+              m <- matrix(c(st_coordinates(wells[i, ])[,1],
+                            st_coordinates(wells[i, ])[,2],
+                            st_coordinates(stream_points_geometry[points[j], ])[,1],
+                            st_coordinates(stream_points_geometry[points[j], ])[,2]),
+                          ncol = 2,
+                          byrow = TRUE)
+              line <- st_sf(st_sfc(st_linestring(m), crs = st_crs(wells)))
+              st_geometry(line) <- 'geometry'
+              #-------------------------------------------------------------------------------
+              lines[[j]] <- line
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
+            well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
+            gr <- model_grid[grid_layers == well_layers[i], ]
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            if(str_to_title(proximity_criteria) %in% c('Local Area',
+                                                       'Expanding')){
+              #-------------------------------------------------------------------------------
+              # simple buffer intersect
+              int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            if(str_to_title(proximity_criteria) %in% c('Adjacent')){
+              #-------------------------------------------------------------------------------
+              # check which subwatershed its within
+              well_intersect_indices <- st_intersects(subwatersheds,
+                                                      wells[i, ])
+              rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+              if(length(rm_empty_intersections) > 0){
+                well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+              } else {
+                well_intersect_indices <- c(1:length(well_intersect_indices))
+              }
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              # check which subwatershed touches original subwatershed
+              subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                         subwatersheds[well_intersect_indices, ])
+              subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+              subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+              
+              if(length(subwatershed_touches_indices) > 0){
+                well_intersect_indices <- append(well_intersect_indices,
+                                                 subwatershed_touches_indices)
+              } else {}
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
+              #-------------------------------------------------------------------------------
+              # check which subwatershed its within
+              well_intersect_indices <- st_intersects(subwatersheds,
+                                                      wells[i, ])
+              rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+              if(length(rm_empty_intersections) > 0){
+                well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+              } else {
+                well_intersect_indices <- c(1:length(well_intersect_indices))
+              }
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              # check which subwatershed touches original subwatershed
+              subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                         subwatersheds[well_intersect_indices, ])
+              subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+              subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+              
+              if(length(subwatershed_touches_indices) > 0){
+                well_intersect_indices <- append(well_intersect_indices,
+                                                 subwatershed_touches_indices)
+              } else {}
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
+                                                      st_buffer(wells[i, ], influence_radius))
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting which gridcells intersect linestrings
+            grid_inds <- lapply(lines, function(x){
+              #-------------------------------------------------------------------------------
+              # intersect line between well and stream with the grid
+              int <- st_is_within_distance(gr, x$geometry, dist = 0)
+              gr_inds <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_inds <- gr_inds[-c(rm)]
+              } else {}
+              #-------------------------------------------------------------------------------
+            })
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # what are the transmissivities of those grid cells
+            transmissivities <- lapply(1:length(grid_inds), function(i){
+              gr <- gr[grid_inds[[i]], ]
+              mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
+            })
+            storage_coefficients <- lapply(1:length(grid_inds), function(i){
+              gr <- gr[grid_inds[[i]], ]
+              mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+            })
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # take weighted mean of lambda along the considered reach
+          # logic is that closer points will control more
+          reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
+          stream_inds <- reaches %in% RN
+          
+          lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
+          lambdas <- vector(mode = 'list', length = length(lambda))
+          lambdas[1:length(lambda)] <- lambda
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # using information to calculate depletions at each well
+          for(j in 1:length(reach_indices)){
+            Q_out <- hunt_stream_depletion_model(stor_coef = storage_coefficients[[j]],
+                                                 transmissivity = transmissivities[[j]],
+                                                 distance = distances[[j]],
+                                                 QW = pumping,
+                                                 lambda = lambdas[[j]])
+            Q_fraction <- Q_out[[1]] * fracs[j]
+            depletions_potential_per_well_per_reach[[j]] <- Q_fraction
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
+          depletions_total[is.na(depletions_total) == TRUE] <- 0
+          depletions_total <- base::colSums(depletions_total)
+          depletions_potential_per_well[[i]] <- depletions_total
+          #-------------------------------------------------------------------------------
+          
+          # -------------------------------------------------------------------------------
+          if(is.null(custom_sdf_time) == FALSE){
+            custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
+                                                      distance = as.vector(unlist(distances)),
+                                                      stor_coef = as.vector(unlist(storage_coefficients)),
+                                                      transmissivity = as.vector(unlist(transmissivities)),
+                                                      fracs = fracs[reach_indices],
+                                                      lambda = as.vector(unlist(lambdas)),
+                                                      custom_sdf_time = custom_sdf_time)
+            custom_sdf_per_well[[i]] <- custom_SDF
+          }
+          # -------------------------------------------------------------------------------
         } else {
           #-------------------------------------------------------------------------------
-          # making linestrings between each well and each reach
-          lines <- list()
-          for(j in 1:length(points)){
-            #-------------------------------------------------------------------------------
-            # make line between well and stream
-            m <- matrix(c(st_coordinates(wells[i, ])[,1],
-                          st_coordinates(wells[i, ])[,2],
-                          st_coordinates(stream_points_geometry[points[j], ])[,1],
-                          st_coordinates(stream_points_geometry[points[j], ])[,2]),
-                        ncol = 2,
-                        byrow = TRUE)
-            line <- st_sf(st_sfc(st_linestring(m), crs = st_crs(wells)))
-            st_geometry(line) <- 'geometry'
-            #-------------------------------------------------------------------------------
-            lines[[j]] <- line
+          depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
+          
+          if(is.null(custom_sdf_time) == FALSE){
+            custom_sdf_per_well[[i]] <- NA
           }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
-          well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
-          gr <- model_grid[grid_layers == well_layers[i], ]
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          if(str_to_title(proximity_criteria) %in% c('Local Area',
-                                                     'Expanding')){
-            #-------------------------------------------------------------------------------
-            # simple buffer intersect
-            int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          if(str_to_title(proximity_criteria) %in% c('Adjacent')){
-            #-------------------------------------------------------------------------------
-            # check which subwatershed its within
-            well_intersect_indices <- st_intersects(subwatersheds,
-                                                    wells[i, ])
-            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
-            if(length(rm_empty_intersections) > 0){
-              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
-            } else {
-              well_intersect_indices <- c(1:length(well_intersect_indices))
-            }
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            # check which subwatershed touches original subwatershed
-            subwatershed_touches_indices <- st_touches(subwatersheds,
-                                                       subwatersheds[well_intersect_indices, ])
-            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
-            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
-            
-            if(length(subwatershed_touches_indices) > 0){
-              well_intersect_indices <- append(well_intersect_indices,
-                                               subwatershed_touches_indices)
-            } else {}
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
-            #-------------------------------------------------------------------------------
-            # check which subwatershed its within
-            well_intersect_indices <- st_intersects(subwatersheds,
-                                                    wells[i, ])
-            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
-            if(length(rm_empty_intersections) > 0){
-              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
-            } else {
-              well_intersect_indices <- c(1:length(well_intersect_indices))
-            }
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            # check which subwatershed touches original subwatershed
-            subwatershed_touches_indices <- st_touches(subwatersheds,
-                                                       subwatersheds[well_intersect_indices, ])
-            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
-            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
-            
-            if(length(subwatershed_touches_indices) > 0){
-              well_intersect_indices <- append(well_intersect_indices,
-                                               subwatershed_touches_indices)
-            } else {}
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
-                                                    st_buffer(wells[i, ], influence_radius))
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting which gridcells intersect linestrings
-          grid_inds <- lapply(lines, function(x){
-            #-------------------------------------------------------------------------------
-            # intersect line between well and stream with the grid
-            int <- st_is_within_distance(gr, x$geometry, dist = 0)
-            gr_inds <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_inds <- gr_inds[-c(rm)]
-            } else {}
-            #-------------------------------------------------------------------------------
-          })
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # what are the transmissivities of those grid cells
-          transmissivities <- lapply(1:length(grid_inds), function(i){
-            gr <- gr[grid_inds[[i]], ]
-            mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
-          })
-          storage_coefficients <- lapply(1:length(grid_inds), function(i){
-            gr <- gr[grid_inds[[i]], ]
-            mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
-          })
           #-------------------------------------------------------------------------------
         }
-        #-------------------------------------------------------------------------------
-        
-        
-        #-------------------------------------------------------------------------------
-        # take weighted mean of lambda along the considered reach
-        # logic is that closer points will control more
-        reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
-        stream_inds <- reaches %in% RN
-        
-        lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
-        lambdas <- vector(mode = 'list', length = length(lambda))
-        lambdas[1:length(lambda)] <- lambda
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # using information to calculate depletions at each well
-        for(j in 1:length(reach_indices)){
-          Q_out <- hunt_stream_depletion_model(stor_coef = storage_coefficients[[j]],
-                                               transmissivity = transmissivities[[j]],
-                                               distance = distances[[j]],
-                                               QW = pumping,
-                                               lambda = lambdas[[j]])
-          Q_fraction <- Q_out[[1]] * fracs[j]
-          depletions_potential_per_well_per_reach[[j]] <- Q_fraction
-        }
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
-        depletions_total[is.na(depletions_total) == TRUE] <- 0
-        depletions_total <- base::colSums(depletions_total)
-        depletions_potential_per_well[[i]] <- depletions_total
-        #-------------------------------------------------------------------------------
-        
-        # -------------------------------------------------------------------------------
-        if(is.null(custom_sdf_time) == FALSE){
-          custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
-                                                    distance = as.vector(unlist(distances)),
-                                                    stor_coef = as.vector(unlist(storage_coefficients)),
-                                                    transmissivity = as.vector(unlist(transmissivities)),
-                                                    fracs = fracs[reach_indices],
-                                                    lambda = as.vector(unlist(lambdas)),
-                                                    custom_sdf_time = custom_sdf_time)
-          custom_sdf_per_well[[i]] <- custom_SDF
-        }
-        # -------------------------------------------------------------------------------
       } else {
         #-------------------------------------------------------------------------------
         depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
@@ -3167,12 +3352,10 @@ map_stream_depletions <- function(streams,
         }
         #-------------------------------------------------------------------------------
       }
+      #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
-    
-    
-    
-    
+
     #-------------------------------------------------------------------------------
     # stats
     mean_sdf_of_depletions <- mean(as.vector(unlist(custom_sdf_per_well)), na.rm = TRUE)
@@ -3395,7 +3578,85 @@ map_stream_depletions <- function(streams,
     #-------------------------------------------------------------------------------
     
     
-    
+    #-------------------------------------------------------------------------------
+    if(clip_by_basin == TRUE){
+      if(wells_initially_null == FALSE){
+        int <- st_intersects(wells,
+                             b118)
+        wells_within_basin <- c(1:length(int))
+        rm <- which(lengths(int) == 0)
+        if(length(rm) > 0){
+          wells_within_basin <- wells_within_basin[-c(rm)]
+        } else {}
+      } else {
+        #-------------------------------------------------------------------------------
+        # Null dataframe to map onto
+        df <- as.data.frame(matrix(nrow = 1, ncol = 3))
+        colnames(df) <- c('Buff','Lon','Lat')
+        df$Lon[1] <- -119
+        df$Lat[1] <- 42
+        if(is.null(well_crs) == TRUE){
+          df <- st_as_sf(df,
+                         coords = c('Lon','Lat'),
+                         crs = 4326)
+          df <- st_transform(df, st_crs(streams))
+        } else {
+          df <- st_as_sf(df,
+                         coords = c('Lon','Lat'),
+                         crs = 4326)
+          df <- st_transform(df, well_crs)
+        }
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        x_coords <- c(as.numeric(well_grid_ext[1]),
+                      as.numeric(well_grid_ext[1]),
+                      as.numeric(well_grid_ext[3]),
+                      as.numeric(well_grid_ext[3]),
+                      as.numeric(well_grid_ext[1]))
+        y_coords <- c(as.numeric(well_grid_ext[2]),
+                      as.numeric(well_grid_ext[4]),
+                      as.numeric(well_grid_ext[4]),
+                      as.numeric(well_grid_ext[2]),
+                      as.numeric(well_grid_ext[2]))
+        df$geometry[1] <- st_polygon(list(cbind(x_coords,
+                                                y_coords)))
+        #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        # making wells getting grid dimensions
+        w_gr <- st_make_grid(df,
+                             cellsize = well_grid_cellsize)
+        w_gr <- st_centroid(w_gr)
+        w_gr <- st_sf(w_gr)
+        st_geometry(w_gr) <- 'geometry'
+        coords <- st_coordinates(w_gr)
+        ncol_well_grid <- rle(as.character(coords[,2]))$lengths[1]
+        nrow_well_grid <- nrow(wells)/ncol_well_grid
+        #-------------------------------------------------------------------------------
+        
+        
+        #-------------------------------------------------------------------------------
+        # using the dimensions of st_make_grid() to choose
+        # the nearest cellsize that fits completely within the bounding box
+        w_gr <- st_make_grid(df,
+                             n = c(ncol_well_grid, nrow_well_grid))
+        w_gr <- st_sf(w_gr)
+        st_geometry(w_gr) <- 'geometry'
+        #-------------------------------------------------------------------------------
+        
+        int <- st_intersects(w_gr,
+                             b118)
+        wells_within_basin <- c(1:length(int))
+        rm <- which(lengths(int) == 0)
+        if(length(rm) > 0){
+          wells_within_basin <- wells_within_basin[-c(rm)]
+        } else {}
+      }
+    } else {
+      wells_within_basin <- c(1:nrow(wells))
+    }
+    #-------------------------------------------------------------------------------
     
     
     
@@ -3416,255 +3677,267 @@ map_stream_depletions <- function(streams,
       #-------------------------------------------------------------------------------
       
       #-------------------------------------------------------------------------------
-      # what are the closest points to each well
-      points <- as.vector(unlist(closest_points_per_segment[i, ]))
-      fracs <- as.vector(unlist(reach_impact_frac[i, ]))
-      reach_indices <- c(1:length(points))
-      rm <- which(is.na(points))
-      #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # if no wells are associated with the reach then pass
-      if(all(is.na(points) == TRUE) == FALSE){
+      # is it worth calculating
+      if(i %in% wells_within_basin){
         #-------------------------------------------------------------------------------
-        # remove any non-relevant wells from the for loop
-        if(length(rm) > 0){
-          reach_indices <- reach_indices[-c(rm)]
-        } else {}
+        # what are the closest points to each well
+        points <- as.vector(unlist(closest_points_per_segment[i, ]))
+        fracs <- as.vector(unlist(reach_impact_frac[i, ]))
+        reach_indices <- c(1:length(points))
+        rm <- which(is.na(points))
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        # starting values
-        depletions_potential_per_well_per_reach <- list()
-        distances <- list()
-        transmissivities <- list()
-        storage_coefficients <- list()
-        leakances <- list()
-        points <- points[reach_indices]
-        RN <- st_drop_geometry(stream_points_geometry[points, stream_id_key])
-        RN <- as.vector(unlist(RN))
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # calculating distances
-        distance <- st_distance(wells[i, ],
-                                stream_points_geometry[points, ])
-        distance <- as.numeric(distance)
-        distances[1:length(distance)] <- as.list(distance)
-        #-------------------------------------------------------------------------------
-        
-        
-        #-------------------------------------------------------------------------------
-        # get aquifer properties depending on if its assigned on a per-well basis
-        # or if its going to be taken as an average of the aquifer properties along a line
-        # between the well and the nearest stream
-        if(is.null(model_grid) == TRUE){
-          transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
-          stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
-          transmissivities[1:length(distance)] <- transmissivity
-          storage_coefficients[1:length(distance)] <- stor_coef
+        # if no wells are associated with the reach then pass
+        if(all(is.na(points) == TRUE) == FALSE){
+          #-------------------------------------------------------------------------------
+          # remove any non-relevant wells from the for loop
+          if(length(rm) > 0){
+            reach_indices <- reach_indices[-c(rm)]
+          } else {}
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # starting values
+          depletions_potential_per_well_per_reach <- list()
+          distances <- list()
+          transmissivities <- list()
+          storage_coefficients <- list()
+          leakances <- list()
+          points <- points[reach_indices]
+          RN <- st_drop_geometry(stream_points_geometry[points, stream_id_key])
+          RN <- as.vector(unlist(RN))
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # calculating distances
+          distance <- st_distance(wells[i, ],
+                                  stream_points_geometry[points, ])
+          distance <- as.numeric(distance)
+          distances[1:length(distance)] <- as.list(distance)
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # get aquifer properties depending on if its assigned on a per-well basis
+          # or if its going to be taken as an average of the aquifer properties along a line
+          # between the well and the nearest stream
+          if(is.null(model_grid) == TRUE){
+            transmissivity <- as.numeric(st_drop_geometry(wells[i,well_transmissivity_key]))
+            stor_coef <- as.numeric(st_drop_geometry(wells[i, well_stor_coef_key]))
+            transmissivities[1:length(distance)] <- transmissivity
+            storage_coefficients[1:length(distance)] <- stor_coef
+          } else {
+            #-------------------------------------------------------------------------------
+            # making linestrings between each well and each reach
+            lines <- list()
+            for(j in 1:length(points)){
+              #-------------------------------------------------------------------------------
+              # make line between well and stream
+              m <- matrix(c(st_coordinates(wells[i, ])[,1],
+                            st_coordinates(wells[i, ])[,2],
+                            st_coordinates(stream_points_geometry[points[j], ])[,1],
+                            st_coordinates(stream_points_geometry[points[j], ])[,2]),
+                          ncol = 2,
+                          byrow = TRUE)
+              line <- st_sf(st_sfc(st_linestring(m), crs = st_crs(wells)))
+              st_geometry(line) <- 'geometry'
+              #-------------------------------------------------------------------------------
+              lines[[j]] <- line
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
+            well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
+            gr <- model_grid[grid_layers == well_layers[i], ]
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            if(str_to_title(proximity_criteria) %in% c('Local Area',
+                                                       'Expanding')){
+              #-------------------------------------------------------------------------------
+              # simple buffer intersect
+              int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            if(str_to_title(proximity_criteria) %in% c('Adjacent')){
+              #-------------------------------------------------------------------------------
+              # check which subwatershed its within
+              well_intersect_indices <- st_intersects(subwatersheds,
+                                                      wells[i, ])
+              rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+              if(length(rm_empty_intersections) > 0){
+                well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+              } else {
+                well_intersect_indices <- c(1:length(well_intersect_indices))
+              }
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              # check which subwatershed touches original subwatershed
+              subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                         subwatersheds[well_intersect_indices, ])
+              subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+              subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+              
+              if(length(subwatershed_touches_indices) > 0){
+                well_intersect_indices <- append(well_intersect_indices,
+                                                 subwatershed_touches_indices)
+              } else {}
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            
+            #-------------------------------------------------------------------------------
+            # selecting correct gridcells
+            if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
+              #-------------------------------------------------------------------------------
+              # check which subwatershed its within
+              well_intersect_indices <- st_intersects(subwatersheds,
+                                                      wells[i, ])
+              rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
+              if(length(rm_empty_intersections) > 0){
+                well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
+              } else {
+                well_intersect_indices <- c(1:length(well_intersect_indices))
+              }
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              # check which subwatershed touches original subwatershed
+              subwatershed_touches_indices <- st_touches(subwatersheds,
+                                                         subwatersheds[well_intersect_indices, ])
+              subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
+              subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
+              
+              if(length(subwatershed_touches_indices) > 0){
+                well_intersect_indices <- append(well_intersect_indices,
+                                                 subwatershed_touches_indices)
+              } else {}
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
+                                                      st_buffer(wells[i, ], influence_radius))
+              #-------------------------------------------------------------------------------
+              
+              #-------------------------------------------------------------------------------
+              int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
+              gr_rad <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_rad <- gr_rad[-c(rm)]
+              } else {}
+              gr <- gr[gr_rad, ]
+              #-------------------------------------------------------------------------------
+            }
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # selecting which gridcells intersect linestrings
+            grid_inds <- lapply(lines, function(x){
+              #-------------------------------------------------------------------------------
+              # intersect line between well and stream with the grid
+              int <- st_is_within_distance(gr, x$geometry, dist = 0)
+              gr_inds <- c(1:length(int))
+              rm <- which(lengths(int) == 0)
+              if(length(rm) > 0){
+                gr_inds <- gr_inds[-c(rm)]
+              } else {}
+              #-------------------------------------------------------------------------------
+            })
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # what are the transmissivities of those grid cells
+            transmissivities <- lapply(1:length(grid_inds), function(i){
+              gr <- gr[grid_inds[[i]], ]
+              mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
+            })
+            storage_coefficients <- lapply(1:length(grid_inds), function(i){
+              gr <- gr[grid_inds[[i]], ]
+              mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+            })
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # take weighted mean of lambda along the considered reach
+          # logic is that closer points will control more
+          reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
+          stream_inds <- reaches %in% RN
+          
+          leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
+          leakances <- vector(mode = 'list', length = length(leakance))
+          leakances[1:length(leakance)] <- leakance
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # using information to calculate depletions at each well
+          for(j in 1:length(reach_indices)){
+            Q_out <- hantush_stream_depletion_model(stor_coef = storage_coefficients[[j]],
+                                                    transmissivity = transmissivities[[j]],
+                                                    distance = distances[[j]],
+                                                    QW = pumping,
+                                                    leakance = leakances[[j]])
+            Q_fraction <- Q_out[[1]] * fracs[j]
+            depletions_potential_per_well_per_reach[[j]] <- Q_fraction
+          }
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
+          depletions_total[is.na(depletions_total) == TRUE] <- 0
+          depletions_total <- base::colSums(depletions_total)
+          depletions_potential_per_well[[i]] <- depletions_total
+          #-------------------------------------------------------------------------------
+          
+          # -------------------------------------------------------------------------------
+          if(is.null(custom_sdf_time) == FALSE){
+            custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
+                                                      distance = as.vector(unlist(distances)),
+                                                      stor_coef = as.vector(unlist(storage_coefficients)),
+                                                      transmissivity = as.vector(unlist(transmissivities)),
+                                                      fracs = fracs[reach_indices],
+                                                      leakance = as.vector(unlist(leakances)),
+                                                      custom_sdf_time = custom_sdf_time)
+            custom_sdf_per_well[[i]] <- custom_SDF
+          }
+          # -------------------------------------------------------------------------------
         } else {
           #-------------------------------------------------------------------------------
-          # making linestrings between each well and each reach
-          lines <- list()
-          for(j in 1:length(points)){
-            #-------------------------------------------------------------------------------
-            # make line between well and stream
-            m <- matrix(c(st_coordinates(wells[i, ])[,1],
-                          st_coordinates(wells[i, ])[,2],
-                          st_coordinates(stream_points_geometry[points[j], ])[,1],
-                          st_coordinates(stream_points_geometry[points[j], ])[,2]),
-                        ncol = 2,
-                        byrow = TRUE)
-            line <- st_sf(st_sfc(st_linestring(m), crs = st_crs(wells)))
-            st_geometry(line) <- 'geometry'
-            #-------------------------------------------------------------------------------
-            lines[[j]] <- line
+          depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
+          
+          if(is.null(custom_sdf_time) == FALSE){
+            custom_sdf_per_well[[i]] <- NA
           }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          grid_layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
-          well_layers <- as.vector(unlist(st_drop_geometry(wells[,well_layer_key])))
-          gr <- model_grid[grid_layers == well_layers[i], ]
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          if(str_to_title(proximity_criteria) %in% c('Local Area',
-                                                     'Expanding')){
-            #-------------------------------------------------------------------------------
-            # simple buffer intersect
-            int <- st_intersects(gr, st_buffer(wells[i, ], influence_radius)$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          if(str_to_title(proximity_criteria) %in% c('Adjacent')){
-            #-------------------------------------------------------------------------------
-            # check which subwatershed its within
-            well_intersect_indices <- st_intersects(subwatersheds,
-                                                    wells[i, ])
-            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
-            if(length(rm_empty_intersections) > 0){
-              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
-            } else {
-              well_intersect_indices <- c(1:length(well_intersect_indices))
-            }
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            # check which subwatershed touches original subwatershed
-            subwatershed_touches_indices <- st_touches(subwatersheds,
-                                                       subwatersheds[well_intersect_indices, ])
-            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
-            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
-            
-            if(length(subwatershed_touches_indices) > 0){
-              well_intersect_indices <- append(well_intersect_indices,
-                                               subwatershed_touches_indices)
-            } else {}
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            int <- st_intersects(gr, subwatersheds[well_intersect_indices, ]$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          
-          #-------------------------------------------------------------------------------
-          # selecting correct gridcells
-          if(str_to_title(proximity_criteria) %in% c('Adjacent+Expanding')){
-            #-------------------------------------------------------------------------------
-            # check which subwatershed its within
-            well_intersect_indices <- st_intersects(subwatersheds,
-                                                    wells[i, ])
-            rm_empty_intersections <- which(lengths(well_intersect_indices) == 0)
-            if(length(rm_empty_intersections) > 0){
-              well_intersect_indices <- c(1:length(well_intersect_indices))[-c(rm_empty_intersections)]
-            } else {
-              well_intersect_indices <- c(1:length(well_intersect_indices))
-            }
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            # check which subwatershed touches original subwatershed
-            subwatershed_touches_indices <- st_touches(subwatersheds,
-                                                       subwatersheds[well_intersect_indices, ])
-            subwatershed_touches_indices <- which(lengths(subwatershed_touches_indices) == 0)
-            subwatershed_touches_indices <- c(1:length(subwatershed_touches_indices))[-c(rm_empty_intersections)]
-            
-            if(length(subwatershed_touches_indices) > 0){
-              well_intersect_indices <- append(well_intersect_indices,
-                                               subwatershed_touches_indices)
-            } else {}
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            adjacent_expanding_geometry <- st_union(subwatersheds[well_intersect_indices, ],
-                                                    st_buffer(wells[i, ], influence_radius))
-            #-------------------------------------------------------------------------------
-            
-            #-------------------------------------------------------------------------------
-            int <- st_intersects(gr, adjacent_expanding_geometry$geometry)
-            gr_rad <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_rad <- gr_rad[-c(rm)]
-            } else {}
-            gr <- gr[gr_rad, ]
-            #-------------------------------------------------------------------------------
-          }
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # selecting which gridcells intersect linestrings
-          grid_inds <- lapply(lines, function(x){
-            #-------------------------------------------------------------------------------
-            # intersect line between well and stream with the grid
-            int <- st_is_within_distance(gr, x$geometry, dist = 0)
-            gr_inds <- c(1:length(int))
-            rm <- which(lengths(int) == 0)
-            if(length(rm) > 0){
-              gr_inds <- gr_inds[-c(rm)]
-            } else {}
-            #-------------------------------------------------------------------------------
-          })
-          #-------------------------------------------------------------------------------
-          
-          #-------------------------------------------------------------------------------
-          # what are the transmissivities of those grid cells
-          transmissivities <- lapply(1:length(grid_inds), function(i){
-            gr <- gr[grid_inds[[i]], ]
-            mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
-          })
-          storage_coefficients <- lapply(1:length(grid_inds), function(i){
-            gr <- gr[grid_inds[[i]], ]
-            mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
-          })
           #-------------------------------------------------------------------------------
         }
-        #-------------------------------------------------------------------------------
-        
-        
-        #-------------------------------------------------------------------------------
-        # take weighted mean of lambda along the considered reach
-        # logic is that closer points will control more
-        reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
-        stream_inds <- reaches %in% RN
-        
-        leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
-        leakances <- vector(mode = 'list', length = length(leakance))
-        leakances[1:length(leakance)] <- leakance
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        # using information to calculate depletions at each well
-        for(j in 1:length(reach_indices)){
-          Q_out <- hantush_stream_depletion_model(stor_coef = storage_coefficients[[j]],
-                                                  transmissivity = transmissivities[[j]],
-                                                  distance = distances[[j]],
-                                                  QW = pumping,
-                                                  leakance = leakances[[j]])
-          Q_fraction <- Q_out[[1]] * fracs[j]
-          depletions_potential_per_well_per_reach[[j]] <- Q_fraction
-        }
-        #-------------------------------------------------------------------------------
-        
-        #-------------------------------------------------------------------------------
-        depletions_total <- do.call(rbind, depletions_potential_per_well_per_reach)
-        depletions_total[is.na(depletions_total) == TRUE] <- 0
-        depletions_total <- base::colSums(depletions_total)
-        depletions_potential_per_well[[i]] <- depletions_total
-        #-------------------------------------------------------------------------------
-        
-        # -------------------------------------------------------------------------------
-        if(is.null(custom_sdf_time) == FALSE){
-          custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
-                                                    distance = as.vector(unlist(distances)),
-                                                    stor_coef = as.vector(unlist(storage_coefficients)),
-                                                    transmissivity = as.vector(unlist(transmissivities)),
-                                                    fracs = fracs[reach_indices],
-                                                    leakance = as.vector(unlist(leakances)),
-                                                    custom_sdf_time = custom_sdf_time)
-          custom_sdf_per_well[[i]] <- custom_SDF
-        }
-        # -------------------------------------------------------------------------------
       } else {
         #-------------------------------------------------------------------------------
         depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
@@ -3674,6 +3947,7 @@ map_stream_depletions <- function(streams,
         }
         #-------------------------------------------------------------------------------
       }
+      #-------------------------------------------------------------------------------
     }
     #-------------------------------------------------------------------------------
     
@@ -4054,11 +4328,11 @@ map_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # ensure everything is in the same projection
-        proj_output <- ensure_projections(projection_object = streams,
-                                          geometry_list = list(subwatersheds,
-                                                               stream_points_geometry))
-        subwatersheds <- proj_output[[1]]
-        stream_points_geometry <- proj_output[[2]]
+      proj_output <- ensure_projections(projection_object = streams,
+                                        geometry_list = list(subwatersheds,
+                                                             stream_points_geometry))
+      subwatersheds <- proj_output[[1]]
+      stream_points_geometry <- proj_output[[2]]
       
       rm(proj_output)
       #-------------------------------------------------------------------------------
@@ -4430,6 +4704,7 @@ map_stream_depletions <- function(streams,
   
   
   
+  
   ############################################################################################
   # errors
   #-------------------------------------------------------------------------------
@@ -4551,6 +4826,37 @@ map_stream_depletions <- function(streams,
                 'the circumstance where wells are to be made by regular grid.\n',
                 'exiting program ...'))
     #-------------------------------------------------------------------------------
+  }
+  
+  
+  if(clip_by_basin == TRUE){
+    if(is.null(basin) == TRUE){
+      #-------------------------------------------------------------------------------
+      writeLines(text = sprintf('%s',
+                                paste0('User selected option to only calculate within groundwater basin')),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                paste0('but no basin geometry passed.')),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                'Exiting program ...'),
+                 con = log_file)
+      close(log_file)
+      #-------------------------------------------------------------------------------
+      
+      
+      #-------------------------------------------------------------------------------
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
+                  'User selected option to only calculate within groundwater basin ',
+                  'but no basin geometry passed.\n',
+                  'exiting program ...'))
+      #-------------------------------------------------------------------------------
+    } else {
+      proj_output <- ensure_projections(projection_object = streams,
+                                        geometry_list = list(basin))
+      basin <- proj_output[[1]]
+      rm(proj_output)
+    }
   }
   
   
@@ -4931,10 +5237,10 @@ map_stream_depletions <- function(streams,
               row.names = FALSE)
 
     st_write(wells,
-              file.path(data_out_dir,
-                        'wells_with_impacted_length.shp'),
-              append = FALSE,
-              quiet = TRUE)
+             file.path(data_out_dir,
+                       'wells_with_impacted_length.shp'),
+             append = FALSE,
+             quiet = TRUE)
 
     st_write(stream_points_geometry,
              file.path(data_out_dir,
