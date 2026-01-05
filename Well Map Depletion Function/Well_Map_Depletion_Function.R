@@ -2778,7 +2778,7 @@ map_stream_depletions <- function(streams,
         }
       } else {
         #-------------------------------------------------------------------------------
-        depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
+        depletions_potential_per_well[[i]] <- rep(NA, length(pumping)) # reach has no depletions
         
         if(is.null(custom_sdf_time) == FALSE){
           custom_sdf_per_well[[i]] <- NA
@@ -3367,7 +3367,7 @@ map_stream_depletions <- function(streams,
         }
       } else {
         #-------------------------------------------------------------------------------
-        depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
+        depletions_potential_per_well[[i]] <- rep(NA, length(pumping)) # reach has no depletions
         
         if(is.null(custom_sdf_time) == FALSE){
           custom_sdf_per_well[[i]] <- NA
@@ -3962,7 +3962,7 @@ map_stream_depletions <- function(streams,
         }
       } else {
         #-------------------------------------------------------------------------------
-        depletions_potential_per_well[[i]] <- rep(0, length(pumping)) # reach has no depletions
+        depletions_potential_per_well[[i]] <- rep(NA, length(pumping)) # reach has no depletions
         
         if(is.null(custom_sdf_time) == FALSE){
           custom_sdf_per_well[[i]] <- NA
