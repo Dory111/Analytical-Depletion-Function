@@ -172,7 +172,12 @@ calculate_stream_depletions <- function(streams,
         }
         
         x <- depletions_potential_per_well_total[k,]
-        x <- x[is.na(x) == FALSE]
+        rm <- which(is.na(x) == TRUE)
+        if(length(rm) > 0){
+          x <- x[-c(rm)]
+          w <- w[-c(rm)]
+        }
+        
         weighted_mean(x = x,
                       w = w, na.rm = T)
       })
@@ -196,7 +201,11 @@ calculate_stream_depletions <- function(streams,
         }
         
         x <- depletions_potential_per_well_total[k,]
-        x <- x[is.na(x) == FALSE]
+        rm <- which(is.na(x) == TRUE)
+        if(length(rm) > 0){
+          x <- x[-c(rm)]
+          w <- w[-c(rm)]
+        }
         weighted_mean(x = x,
                       w = w, na.rm = T)
       })
@@ -219,7 +228,11 @@ calculate_stream_depletions <- function(streams,
         }
         
         x <- depletions_potential_per_well_total[k,]
-        x <- x[is.na(x) == FALSE]
+        rm <- which(is.na(x) == TRUE)
+        if(length(rm) > 0){
+          x <- x[-c(rm)]
+          w <- w[-c(rm)]
+        }
         weighted_mean(x = x,
                       w = w, na.rm = T)
       })
@@ -247,7 +260,11 @@ calculate_stream_depletions <- function(streams,
         }
         
         x <- depletions_potential_per_well_total[k,]
-        x <- x[is.na(x) == FALSE]
+        rm <- which(is.na(x) == TRUE)
+        if(length(rm) > 0){
+          x <- x[-c(rm)]
+          w <- w[-c(rm)]
+        }
         weighted_mean(x = x,
                       w = w, na.rm = T)
       })
@@ -274,7 +291,11 @@ calculate_stream_depletions <- function(streams,
         }
         
         x <- depletions_potential_per_well_total[k,]
-        x <- x[is.na(x) == FALSE]
+        rm <- which(is.na(x) == TRUE)
+        if(length(rm) > 0){
+          x <- x[-c(rm)]
+          w <- w[-c(rm)]
+        }
         weighted_mean(x = x,
                       w = w, na.rm = T)
       })
@@ -317,7 +338,11 @@ calculate_stream_depletions <- function(streams,
       }
       
       x <- sdf_vec
-      x <- x[is.na(x) == FALSE]
+      rm <- which(is.na(x) == TRUE)
+      if(length(rm) > 0){
+        x <- x[-c(rm)]
+        w <- w[-c(rm)]
+      }
       
       average_sdf <- weighted_mean(x = x,
                                    w = w, na.rm = T)
@@ -340,7 +365,11 @@ calculate_stream_depletions <- function(streams,
       }
       
       x <- sdf_vec
-      x <- x[is.na(x) == FALSE]
+      rm <- which(is.na(x) == TRUE)
+      if(length(rm) > 0){
+        x <- x[-c(rm)]
+        w <- w[-c(rm)]
+      }
       
       
       average_sdf <- weighted_mean(x = x,
