@@ -4849,6 +4849,43 @@ map_stream_depletions <- function(streams,
   }
   
   
+  if(is.null(model_grid) == FALSE &
+     is.null(wells) == TRUE &
+     is.null(well_layer) == FALSE){
+    layers <- as.vector(unlist(st_drop_geometry(model_grid[,grid_layer_key])))
+    unique_layers <- unique(layers)
+    if(!well_layer %in% layers){
+      #-------------------------------------------------------------------------------
+      writeLines(text = sprintf('%s',
+                                paste0('Well_layer set to ', well_layer)),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                paste0('while model_grid contains layer(s) ',paste0(unique_layers, collapse = ','))),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                paste0('these do not overlap.')),
+                 con = log_file)
+      writeLines(text = sprintf('%s',
+                                'Exiting program ...'),
+                 con = log_file)
+      close(log_file)
+      #-------------------------------------------------------------------------------
+      
+      
+      #-------------------------------------------------------------------------------
+      stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
+                  paste0('Well_layer set to ', well_layer),'\n',
+                  paste0('while model_grid contains layer(s) ',paste0(unique_layers, collapse = ',')),'\n',
+                  'these do not overlap.\n',
+                  'exiting program ...'))
+      #-------------------------------------------------------------------------------
+    }
+  }
+  
+  
+  
+  
+  
   if(clip_by_basin == TRUE){
     if(is.null(basin) == TRUE){
       #-------------------------------------------------------------------------------
