@@ -2944,6 +2944,7 @@ calculate_stream_depletions <- function(streams,
         pump_frac_per_well <- list()
         depletions_potential_per_well <- list()
         Jenk_SDF_per_well <- list()
+        distances <- list()
         custom_SDF_per_well <- list()
         counter <- 0
         for(j in well_indices){
@@ -3554,6 +3555,7 @@ calculate_stream_depletions <- function(streams,
         pump_frac_per_well <- list()
         depletions_potential_per_well <- list()
         Jenk_SDF_per_well <- list()
+        distances <- list()
         custom_SDF_per_well <- list()
         counter <- 0
         for(j in well_indices){
