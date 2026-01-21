@@ -2274,28 +2274,6 @@ calculate_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # evaulate f(t) - f(t-1)
-      depletions_vec[starts_actual_vec > 0] <-
-        pumping_vec[starts_actual_vec > 0] *
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity))
-      
-      depletions_mat <- matrix(depletions_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      depletions_mat <- depletions_mat[-c(1), ]
-      depletions <- base::rowSums(depletions_mat)
-        
-        
-        
-        
-        
-
       fractional_vec[starts_actual_vec > 0] <-
         (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
                   distance = distance,
@@ -2311,6 +2289,19 @@ calculate_stream_depletions <- function(streams,
                                ncol = length(start_pumping))
       fractional_mat <- fractional_mat[-c(1), ]
       fractions <- base::rowSums(fractional_mat)
+      
+      
+      
+      
+      
+      depletions_vec[starts_actual_vec > 0] <- fractional_vec[starts_actual_vec > 0] * 
+        pumping_vec[starts_actual_vec > 0]
+      
+      depletions_mat <- matrix(depletions_vec,
+                               nrow = length(timesteps),
+                               ncol = length(start_pumping))
+      depletions_mat <- depletions_mat[-c(1), ]
+      depletions <- base::rowSums(depletions_mat)
       #-------------------------------------------------------------------------------
       
       
@@ -2717,8 +2708,8 @@ calculate_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           # assemble terms
-          z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
-                                   (4*transmissivity*elapsed_time[infinite_indices]))), prec = prec)
+          z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time[infinite_indices])))
           t1 <- Rmpfr::erfc(z)
           
           
@@ -2727,7 +2718,7 @@ calculate_stream_depletions <- function(streams,
           t2 <- base::exp(t2_a + t2_b)
           
           
-          t3_a <- Rmpfr::mpfr((sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity))),  prec = prec)
+          t3_a <- (sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)))
           t3 <- Rmpfr::erfc(t3_a + z)
           #-------------------------------------------------------------------------------
           
@@ -2824,30 +2815,6 @@ calculate_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # evaulate f(t) - f(t-1)
-      depletions_vec[starts_actual_vec > 0] <-
-        pumping_vec[starts_actual_vec > 0] *
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity,
-                  lambda = lambda) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity,
-                    lambda = lambda))
-      
-      depletions_mat <- matrix(depletions_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      depletions_mat <- depletions_mat[-c(1), ]
-      depletions <- base::rowSums(depletions_mat)
-      
-      
-      
-      
-      
-      
       fractional_vec[starts_actual_vec > 0] <-
         (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
                   distance = distance,
@@ -2865,6 +2832,20 @@ calculate_stream_depletions <- function(streams,
                                ncol = length(start_pumping))
       fractional_mat <- fractional_mat[-c(1), ]
       fractions <- base::rowSums(fractional_mat)
+      
+      
+      
+      
+      
+      
+      depletions_vec[starts_actual_vec > 0] <- fractional_vec[starts_actual_vec > 0] * 
+        pumping_vec[starts_actual_vec > 0]
+      
+      depletions_mat <- matrix(depletions_vec,
+                               nrow = length(timesteps),
+                               ncol = length(start_pumping))
+      depletions_mat <- depletions_mat[-c(1), ]
+      depletions <- base::rowSums(depletions_mat)
       #-------------------------------------------------------------------------------
       
       
@@ -3329,8 +3310,8 @@ calculate_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           # assemble terms
-          z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
-                                   (4*transmissivity*elapsed_time[infinite_indices]))),  prec = prec)
+          z <- (sqrt((stor_coef * distance* distance)/
+                    (4*transmissivity*elapsed_time[infinite_indices])))
           t1 <- Rmpfr::erfc(z)
           
           
@@ -3339,7 +3320,7 @@ calculate_stream_depletions <- function(streams,
           t2 <- base::exp(t2_a + t2_b)
           
           
-          t3_a <- Rmpfr::mpfr((sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance))),  prec = prec)
+          t3_a <- (sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)))
           t3 <- Rmpfr::erfc(t3_a + z)
           #-------------------------------------------------------------------------------
           
@@ -3435,30 +3416,6 @@ calculate_stream_depletions <- function(streams,
       
       #-------------------------------------------------------------------------------
       # evaulate f(t) - f(t-1)
-      depletions_vec[starts_actual_vec > 0] <-
-        pumping_vec[starts_actual_vec > 0] *
-        (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
-                  distance = distance,
-                  stor_coef = stor_coef,
-                  transmissivity = transmissivity,
-                  leakance = leakance) -
-           equation(elapsed_time = stops_actual_vec[starts_actual_vec > 0],
-                    distance = distance,
-                    stor_coef = stor_coef,
-                    transmissivity = transmissivity,
-                    leakance = leakance))
-      
-      depletions_mat <- matrix(depletions_vec,
-                               nrow = length(timesteps),
-                               ncol = length(start_pumping))
-      depletions_mat <- depletions_mat[-c(1), ]
-      depletions <- base::rowSums(depletions_mat)
-      
-      
-      
-      
-      
-      
       fractional_vec[starts_actual_vec > 0] <-
         (equation(elapsed_time = starts_actual_vec[starts_actual_vec > 0],
                   distance = distance,
@@ -3476,6 +3433,19 @@ calculate_stream_depletions <- function(streams,
                                ncol = length(start_pumping))
       fractional_mat <- fractional_mat[-c(1), ]
       fractions <- base::rowSums(fractional_mat)
+      
+      
+      
+      
+      
+      depletions_vec[starts_actual_vec > 0] <- fractional_vec[starts_actual_vec > 0] * 
+        pumping_vec[starts_actual_vec > 0]
+      
+      depletions_mat <- matrix(depletions_vec,
+                               nrow = length(timesteps),
+                               ncol = length(start_pumping))
+      depletions_mat <- depletions_mat[-c(1), ]
+      depletions <- base::rowSums(depletions_mat)
       #-------------------------------------------------------------------------------
       
       
