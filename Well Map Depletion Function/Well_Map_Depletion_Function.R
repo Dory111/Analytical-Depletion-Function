@@ -2935,8 +2935,8 @@ map_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           # assemble terms
-          z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
-                                   (4*transmissivity*elapsed_time[infinite_indices]))), prec = prec)
+          z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time[infinite_indices])))
           t1 <- Rmpfr::erfc(z)
           
           
@@ -2945,7 +2945,7 @@ map_stream_depletions <- function(streams,
           t2 <- base::exp(t2_a + t2_b)
           
           
-          t3_a <- Rmpfr::mpfr((sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity))),  prec = prec)
+          t3_a <- (sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)))
           t3 <- Rmpfr::erfc(t3_a + z)
           #-------------------------------------------------------------------------------
           
@@ -3530,8 +3530,8 @@ map_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           # assemble terms
-          z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
-                                   (4*transmissivity*elapsed_time[infinite_indices]))),  prec = prec)
+          z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time[infinite_indices])))
           t1 <- Rmpfr::erfc(z)
           
           
@@ -3540,7 +3540,7 @@ map_stream_depletions <- function(streams,
           t2 <- base::exp(t2_a + t2_b)
           
           
-          t3_a <- Rmpfr::mpfr((sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance))),  prec = prec)
+          t3_a <- (sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)))
           t3 <- Rmpfr::erfc(t3_a + z)
           #-------------------------------------------------------------------------------
           
