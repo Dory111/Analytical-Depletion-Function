@@ -3201,21 +3201,25 @@ calculate_stream_depletions <- function(streams,
     
     #-------------------------------------------------------------------------------
     # output and stats 2
+    log_writeout <- jenk_sdf_per_reach
+    log_writeout <- log_writeout[is.infinite(log_writeout) == FALSE]
     writeLines(text = sprintf('%s %s',
                               paste('Mean | Median Jenkins SDF'),
-                              paste(round(mean(jenk_sdf_per_reach, na.rm = TRUE),4),
+                              paste(round(mean(log_writeout, na.rm = TRUE),4),
                                     '|',
-                                    round(median(jenk_sdf_per_reach, na.rm = TRUE),4))),
+                                    round(median(log_writeout, na.rm = TRUE),4))),
                con = log_file)
     if(is.null(custom_sdf_time) == TRUE){
       custom_sdf_per_reach <- NULL
     } else{
       custom_sdf_per_reach <- do.call(rbind, custom_sdf_per_reach)
+      log_writeout <- custom_sdf_per_reach
+      log_writeout <- log_writeout[is.infinite(log_writeout) == FALSE]
       writeLines(text = sprintf('%s %s',
                                 paste('Mean | Median Custom SDF',paste0('(',custom_sdf_time,')')),
-                                paste(round(mean(custom_sdf_per_reach, na.rm = TRUE),4),
+                                paste(round(mean(log_writeout, na.rm = TRUE),4),
                                       '|',
-                                      round(median(custom_sdf_per_reach, na.rm = TRUE),4))),
+                                      round(median(log_writeout, na.rm = TRUE),4))),
                  con = log_file)
     }
     #-------------------------------------------------------------------------------
