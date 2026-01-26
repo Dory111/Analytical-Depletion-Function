@@ -404,8 +404,8 @@ map_stream_depletions <- function(streams,
         
         #-------------------------------------------------------------------------------
         # assemble terms
-        z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
-                                 (4*transmissivity*test_time))), prec = prec)
+        z <- (sqrt((stor_coef * distance* distance)/
+                   (4*transmissivity*test_time)))
         t1 <- Rmpfr::erfc(z)
         t1[is.nan(t1) == TRUE] <- 0
         
@@ -414,7 +414,7 @@ map_stream_depletions <- function(streams,
         t2 <- base::exp(t2_a + t2_b)
         t2[is.nan(t2) == TRUE] <- 0
         
-        t3_a <- Rmpfr::mpfr((sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity))),  prec = prec)
+        t3_a <- (sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity)))
         t3 <- Rmpfr::erfc(t3_a + z)
         t3[is.nan(t3) == TRUE] <- 0
         r <- sum(as.numeric(t1 - (t2*t3))*fracs)
@@ -537,8 +537,8 @@ map_stream_depletions <- function(streams,
         
         #-------------------------------------------------------------------------------
         # assemble terms
-        z <- Rmpfr::mpfr((sqrt((stor_coef * distance* distance)/
-                                 (4*transmissivity*test_time))),  prec = prec)
+        z <- (sqrt((stor_coef * distance* distance)/
+                   (4*transmissivity*test_time)))
         t1 <- Rmpfr::erfc(z)
         t1[is.nan(t1) == TRUE] <- 0
         
@@ -547,7 +547,7 @@ map_stream_depletions <- function(streams,
         t2 <- base::exp(t2_a + t2_b)
         t2[is.nan(t2) == TRUE] <- 0
         
-        t3_a <- Rmpfr::mpfr((sqrt((transmissivity*test_time)/(stor_coef*leakance*leakance))),  prec = prec)
+        t3_a <- (sqrt((transmissivity*test_time)/(stor_coef*leakance*leakance)))
         t3 <- Rmpfr::erfc(t3_a + z)
         t3[is.nan(t3) == TRUE] <- 0
         #-------------------------------------------------------------------------------
@@ -3299,10 +3299,14 @@ map_stream_depletions <- function(streams,
           # logic is that closer points will control more
           reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
           stream_inds <- reaches %in% RN
-          
-          lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
-          lambdas <- vector(mode = 'list', length = length(lambda))
-          lambdas[1:length(lambda)] <- lambda
+          for(j in 1:length(RN)){
+            stream_inds <- reaches %in% RN[j]
+            lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
+            lambdas[[j]] <- mean(lambda, na.rm = T)
+          }
+          # lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
+          # lambdas <- vector(mode = 'list', length = length(lambda))
+          # lambdas[1:length(lambda)] <- lambda
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
@@ -3894,10 +3898,14 @@ map_stream_depletions <- function(streams,
           # logic is that closer points will control more
           reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
           stream_inds <- reaches %in% RN
-          
-          leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
-          leakances <- vector(mode = 'list', length = length(leakance))
-          leakances[1:length(leakance)] <- leakance
+          for(j in 1:length(RN)){
+            stream_inds <- reaches %in% RN[j]
+            leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, leakance_key])))
+            leakances[[j]] <- mean(leakance, na.rm = T)
+          }
+          # leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
+          # leakances <- vector(mode = 'list', length = length(leakance))
+          # leakances[1:length(leakance)] <- leakance
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
