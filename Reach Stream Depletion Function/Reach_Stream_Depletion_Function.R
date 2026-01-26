@@ -1881,31 +1881,13 @@ calculate_stream_depletions <- function(streams,
       dists <- as.vector(unlist(dists))
       #-------------------------------------------------------------------------------
       
-      #-------------------------------------------------------------------------------
-      # repeat above but with all points
-      n_points_per_reach_all <- split(stream_points_geometry,
-                                      st_drop_geometry(stream_points_geometry[ ,stream_id_key]))
-      n_points_per_reach_all <- n_points_per_reach_all[reaches]
-      #-------------------------------------------------------------------------------
-      
-      #-------------------------------------------------------------------------------
-      # repeat above but with all points
-      dists_all <- lapply(n_points_per_reach_all, function(x){
-        s1 <- st_distance(well,
-                          x)
-        sum(as.vector(unlist(s1)))
-      })
-      dists_all <- as.vector(unlist(dists_all))
-      #-------------------------------------------------------------------------------
-      
-      
-      
+
       
       #-------------------------------------------------------------------------------
       if(geologic_apportionment == FALSE){
         #-------------------------------------------------------------------------------
         numerator <- 1/(dists**power)
-        denominator <- sum(1/(dists_all**power))
+        denominator <- sum(1/(dists**power))
         fractions_of_depletions <- numerator/denominator
         #-------------------------------------------------------------------------------
       }
@@ -1932,7 +1914,7 @@ calculate_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           numerator <- (1/(dists**power))*(TR_prime/TR)
-          denominator <- sum((1/(dists_all**power))*(TR_prime/TR))
+          denominator <- sum((1/(dists**power))*(TR_prime/TR))
           fractions_of_depletions <- numerator/denominator
           #-------------------------------------------------------------------------------
         }
@@ -2017,7 +1999,7 @@ calculate_stream_depletions <- function(streams,
           
           #-------------------------------------------------------------------------------
           numerator <- (1/(dists**power))*(TR/max(TR))
-          denominator <- sum((1/(dists_all**power))*(TR/max(TR)))
+          denominator <- sum((1/(dists**power))*(TR/max(TR)))
           fractions_of_depletions <- numerator/denominator
           #-------------------------------------------------------------------------------
         }
