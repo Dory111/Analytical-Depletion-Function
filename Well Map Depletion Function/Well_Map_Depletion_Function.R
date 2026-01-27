@@ -3317,7 +3317,7 @@ map_stream_depletions <- function(streams,
                                                  distance = distances[[j]],
                                                  QW = pumping,
                                                  lambda = lambdas[[j]])
-            Q_fraction <- Q_out[[1]] * fracs[j]
+            Q_fraction <- Q_out[[1]] * fracs[reach_indices[j]]
             depletions_potential_per_well_per_reach[[j]] <- Q_fraction
           }
           #-------------------------------------------------------------------------------
@@ -3916,7 +3916,7 @@ map_stream_depletions <- function(streams,
                                                     distance = distances[[j]],
                                                     QW = pumping,
                                                     leakance = leakances[[j]])
-            Q_fraction <- Q_out[[1]] * fracs[j]
+            Q_fraction <- Q_out[[1]] * fracs[reach_indices[j]]
             depletions_potential_per_well_per_reach[[j]] <- Q_fraction
           }
           #-------------------------------------------------------------------------------

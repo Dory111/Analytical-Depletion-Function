@@ -2974,6 +2974,8 @@ calculate_stream_depletions <- function(streams,
           # take weighted mean of lambda along the considered reach
           # logic is that closer points will control more
           reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
+          # this will always go to whatever reach is represented by closest_points_per_segment[,i]
+          # do not be confused that it is controlled by j and not i
           stream_inds <- reaches == RN[j]
           all_distances <- st_distance(wells[j, ],
                                        stream_points_geometry[stream_inds, ])
@@ -3578,6 +3580,8 @@ calculate_stream_depletions <- function(streams,
           # take weighted mean of leakance along the reach, closer points are weighted more
           # logic is that closer points will control more of the flow
           reaches <- as.vector(unlist(st_drop_geometry(stream_points_geometry[,stream_id_key])))
+          # this will always go to whatever reach is represented by closest_points_per_segment[,i]
+          # do not be confused that it is controlled by j and not i
           stream_inds <- reaches == RN[j]
           all_distances <- st_distance(wells[j, ],
                                        stream_points_geometry[stream_inds, ])
