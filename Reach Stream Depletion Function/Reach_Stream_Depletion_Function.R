@@ -2655,11 +2655,19 @@ calculate_stream_depletions <- function(streams,
                            lambda)
       {
         #-------------------------------------------------------------------------------
+        z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time)))
+        t1 <- erfc(z)
+        
         t2_a <- ((lambda*lambda*elapsed_time)/(4*stor_coef*transmissivity))
         t2_b <- ((lambda*distance)/(2*transmissivity))
         t2 <- base::exp(t2_a + t2_b)
         
+        t3_a <- (sqrt((lambda*lambda*elapsed_time)/(4*stor_coef*transmissivity)))
+        t3 <- erfc(t3_a + z)
+        
         infinite_indices <- which(is.infinite(t2))
+        infinite_indices <- unique(c(infinite_indices, which(t3 == 0)))
         all_indices <- c(1:length(elapsed_time))
         #-------------------------------------------------------------------------------
         
@@ -2700,8 +2708,8 @@ calculate_stream_depletions <- function(streams,
           t2 <- base::exp(t2_a + t2_b)
           
           
-          t3_a <- (sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)))
-          t3 <- Rmpfr::erfc(t3_a + z)
+          t3_a <- Rmpfr::mpfr(sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)), prec = prec)
+          t3 <- erfc(t3_a + z)
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
@@ -3263,11 +3271,19 @@ calculate_stream_depletions <- function(streams,
       {
         
         #-------------------------------------------------------------------------------
+        z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time)))
+        t1 <- erfc(z)
+        
         t2_a <- ((transmissivity*elapsed_time)/(stor_coef*leakance*leakance))
         t2_b <- (distance/leakance)
         t2 <- base::exp(t2_a + t2_b)
         
+        t3_a <- (sqrt((transmissivity*elapsed_time)/(stor_coef*leakance*leakance)))
+        t3 <- erfc(t3_a + z)
+        
         infinite_indices <- which(is.infinite(t2))
+        infinite_indices <- unique(c(infinite_indices, which(t3 == 0)))
         all_indices <- c(1:length(elapsed_time))
         #-------------------------------------------------------------------------------
         
@@ -3308,8 +3324,8 @@ calculate_stream_depletions <- function(streams,
           t2 <- base::exp(t2_a + t2_b)
           
           
-          t3_a <- (sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)))
-          t3 <- Rmpfr::erfc(t3_a + z)
+          t3_a <- Rmpfr::mpfr(sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)), prec = prec)
+          t3 <- erfc(t3_a + z)
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
