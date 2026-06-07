@@ -224,7 +224,15 @@ describes whether to use a mantissa and exponent separation when
 calculating the exponential values of the Hunt and Hantush equations,
 and a asymptotic expansion for their complimentary error functions. In
 testing this resulted in about a 4x calculation speedup due to the
-avoidance of using Rmpfr and about a 0.004% error. Information on
+avoidance of using Rmpfr and about a 0.004% error at meaningful values.
+For non-meaningful values error may be as high as 1% due to far away
+reaches causing large exponentials at short timesteps to be multiplied
+by incredibly small exponentials (ex: e^1000 \* e^-999). By
+non-meaningful the author is referencing that these high percent error
+will in reality represent the difference between a number such as
+4.54e-291 and 4.58e-291, which is for this type of program does not
+represent a physical value. An e-293 volume difference in any commonly
+used units cannot be measured in stream depletion. Information on
 asymptotic error function expansions can be found at
 <https://dlmf.nist.gov/7.12>?. <br/> <br/> <br/> <br/>
 
