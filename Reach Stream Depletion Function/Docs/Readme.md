@@ -218,7 +218,15 @@ calculating exponential values. Required for the *‘hunt’* and
 *‘hantush’* analytical models can often return **Inf** using base
 numerics, use of *prec* in Rmpfr alleviates this. Higher *prec* values
 will slow down processing. Default taken from streamDepletr package by
-Zipper (2019). <br/> <br/> <br/> <br/>
+Zipper (2019). <br/> <br/>
+<b><font size = "3">use_mse_approx</font></b>: *bool* default *TRUE*,
+describes whether to use a mantissa and exponent separation when
+calculating the exponential values of the Hunt and Hantush equations,
+and a asymptotic expansion for their complimentary error functions. In
+testing this resulted in about a 4x calculation speedup due to the
+avoidance of using Rmpfr and about a 0.004% error. Information on
+asymptotic error function expansions can be found at
+<https://dlmf.nist.gov/7.12>?. <br/> <br/> <br/> <br/>
 
 # References
 
@@ -231,3 +239,5 @@ Jenkins (1968) <https://pubs.usgs.gov/twri/twri4d1/pdf/twri_4-D1_a.pdf>
 (2019)
 <https://cran.r-project.org/web/packages/streamDepletr/index.html> <br/>
 Zipper et al. (2019) <https://doi.org/10.1029/2018WR024403> <br/>
+Asymptotic Expansions: Complementary Error Function
+<https://dlmf.nist.gov/7.12>? <br/>
