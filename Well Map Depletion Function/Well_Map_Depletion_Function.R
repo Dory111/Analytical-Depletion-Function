@@ -46,7 +46,8 @@ map_stream_depletions <- function(streams,
                                   stream_transmissivity_key = NULL,
                                   leakance_key = NULL,
                                   lambda_key = NULL,
-                                  prec = 80)
+                                  prec = 80,
+                                  use_mse_approx = TRUE)
 {
   ############################################################################################
   ######################################### HELPER FUNCTIONS #################################
@@ -141,6 +142,48 @@ map_stream_depletions <- function(streams,
   
   
   
+  
+  
+  
+  # ==================================================================================================
+  # Separates the mantissa and exponent from exp(x) to avoid storing absurdly large numbers
+  # with Rmpfr at the cost of some precision loss (10th decimal place?)
+  # example:
+  # say some number z is equal to e^x
+  # 1) change of base identity yields that log10(e^x) is x/ln(10)
+  # 2) if z = e^x  and log10(e^x) = x/ln(10) -> take log10 of both sides and get that log10(z) = x/ln(10)
+  # 3) number z will be represented by a mantissa multiplied by 10 to an exponent (m * 10^e)
+  # 4) log10(z) = log10(m) + e
+  # 5) m = 10^(log10(z) - e)
+  # 6) log10(m) is between 0 and 1, so e is floor of log10(z)
+  # 7) if e is floor of log10(z) and log10(z) is x/ln(10) from step 2 -> e is floor(x/ln(10))
+  # 8) if m = 10^(log10(z) - e) and log10(z) is x/ln(10) from step 2 -> m = 10^(x/ln(10) - e)
+  # ==================================================================================================
+  separate_mantissa_exponent <- function(x) {
+    y <- x / log(10)
+    
+    exponent <- floor(y)
+    mantissa <- 10^(y - exponent)
+    
+    return(list(mantissa = mantissa, exponent = exponent))
+  }
+  # ------------------------------------------------------------------------------------------------
+  
+  
+  # ==================================================================================================
+  # Approximates behavior of the complementary error function for large z using
+  # asymptotic expansion
+  # see below link and derive for first few terms m and take log of both sides
+  # getting log of both sides then gives log(erfc(x)) = [something]
+  # converting this log value to a regular value then can use separate_mantissa_exponent()
+  # https://dlmf.nist.gov/7.12?
+  # tested to 0.005 percent error
+  # ==================================================================================================
+  asymptotic_erfc_expansion <- function(x){
+    n1 <- (-x**2) - log(x * sqrt(pi))
+    return(n1)
+  }
+  # ------------------------------------------------------------------------------------------------
   
   
   
@@ -403,22 +446,55 @@ map_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        # assemble terms
-        z <- (sqrt((stor_coef * distance* distance)/
-                   (4*transmissivity*test_time)))
-        t1 <- Rmpfr::erfc(z)
-        t1[is.nan(t1) == TRUE] <- 0
-        
-        t2_a <- Rmpfr::mpfr(((lambda*lambda*test_time)/(4*stor_coef*transmissivity)),  prec = prec)
-        t2_b <- Rmpfr::mpfr(((lambda*distance)/(2*transmissivity)), prec = prec)
-        t2 <- base::exp(t2_a + t2_b)
-        t2[is.nan(t2) == TRUE] <- 0
-        
-        t3_a <- (sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity)))
-        t3 <- Rmpfr::erfc(t3_a + z)
-        t3[is.nan(t3) == TRUE] <- 0
-        r <- sum(as.numeric(t1 - (t2*t3))*fracs)
+        # assemble terms if full precision is being used
+        if(use_mse_approx == FALSE){
+          z <- (sqrt((stor_coef * distance* distance)/
+                       (4*transmissivity*test_time)))
+          t1 <- Rmpfr::erfc(z)
+          t1[is.nan(t1) == TRUE] <- 0
+          
+          t2_a <- Rmpfr::mpfr(((lambda*lambda*test_time)/(4*stor_coef*transmissivity)),  prec = prec)
+          t2_b <- Rmpfr::mpfr(((lambda*distance)/(2*transmissivity)), prec = prec)
+          t2 <- base::exp(t2_a + t2_b)
+          t2[is.nan(t2) == TRUE] <- 0
+          
+          t3_a <- Rmpfr::mpfr(sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity)), prec = prec)
+          t3 <- Rmpfr::erfc(t3_a + z)
+          t3[is.nan(t3) == TRUE] <- 0
+          r <- sum(as.numeric(t1 - (t2*t3))*fracs)
+        }
         #-------------------------------------------------------------------------------
+        
+        #-------------------------------------------------------------------------------
+        # if user allows mantissa separate from exponent approximation
+        if(use_mse_approx == TRUE){
+          #-------------------------------------------------------------------------------
+          z <- (sqrt((stor_coef * distance* distance)/
+                       (4*transmissivity*test_time)))
+          t1 <- erfc(z)
+          
+          t2_a <- ((lambda*lambda*test_time)/(4*stor_coef*transmissivity))
+          t2_b <- ((lambda*distance)/(2*transmissivity))
+          t2 <- separate_mantissa_exponent(t2_a + t2_b)
+          t2$mantissa[which(is.nan(t2$mantissa))] <- 0
+          t2$exponent[which(is.nan(t2$mantissa))] <- 0
+          t2$mantissa[which(is.nan(t2$exponent))] <- 0
+          t2$exponent[which(is.nan(t2$exponent))] <- 0
+          
+          t3_a <- Rmpfr::mpfr(sqrt((lambda*lambda*test_time)/(4*stor_coef*transmissivity)), prec = prec)
+          t3 <- Rmpfr::erfc(t3_a + z)
+          t3 <- list(exponent = floor(log10(abs(t3))),
+                     mantissa = t3/ (10**floor(log10(abs(t3)))))
+          t3$mantissa[which(is.nan(t3$mantissa))] <- 0
+          t3$exponent[which(is.nan(t3$mantissa))] <- 0
+          t3$mantissa[which(is.nan(t3$exponent))] <- 0
+          t3$exponent[which(is.nan(t3$exponent))] <- 0
+          
+          r <- sum(as.numeric(t1 - ((10**(t3$exponent + t2$exponent)) * (t3$mantissa*t2$mantissa))) * fracs)
+          #-------------------------------------------------------------------------------
+        }
+        #-------------------------------------------------------------------------------
+        
         
         #-------------------------------------------------------------------------------
         # is it reasonable that an answer can be approached?
@@ -536,25 +612,58 @@ map_stream_depletions <- function(streams,
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        # assemble terms
-        z <- (sqrt((stor_coef * distance* distance)/
-                   (4*transmissivity*test_time)))
-        t1 <- Rmpfr::erfc(z)
-        t1[is.nan(t1) == TRUE] <- 0
-        
-        t2_a <- Rmpfr::mpfr(((transmissivity*test_time)/(stor_coef*leakance*leakance)),  prec = prec)
-        t2_b <- Rmpfr::mpfr((distance/leakance), prec = prec)
-        t2 <- base::exp(t2_a + t2_b)
-        t2[is.nan(t2) == TRUE] <- 0
-        
-        t3_a <- (sqrt((transmissivity*test_time)/(stor_coef*leakance*leakance)))
-        t3 <- Rmpfr::erfc(t3_a + z)
-        t3[is.nan(t3) == TRUE] <- 0
+        # assemble terms if user wants higher precision numbers
+        if(use_mse_approx == FALSE){
+          z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*test_time)))
+          t1 <- Rmpfr::erfc(z)
+          t1[is.nan(t1) == TRUE] <- 0
+          
+          t2_a <- Rmpfr::mpfr(((transmissivity*test_time)/(stor_coef*leakance*leakance)),  prec = prec)
+          t2_b <- Rmpfr::mpfr((distance/leakance), prec = prec)
+          t2 <- base::exp(t2_a + t2_b)
+          t2[is.nan(t2) == TRUE] <- 0
+          
+          t3_a <- Rmpfr::mpfr(sqrt((transmissivity*test_time)/(stor_coef*leakance*leakance)), prec = prec)
+          t3 <- Rmpfr::erfc(t3_a + z)
+          t3[is.nan(t3) == TRUE] <- 0
+          #-------------------------------------------------------------------------------
+          
+          #-------------------------------------------------------------------------------
+          # fill infinite indices with higher precision numbers
+          r <- sum(as.numeric(t1 - (t2*t3))*fracs)
+          #-------------------------------------------------------------------------------
+        }
         #-------------------------------------------------------------------------------
         
         #-------------------------------------------------------------------------------
-        # fill infinite indices with higher precision numbers
-        r <- sum(as.numeric(t1 - (t2*t3))*fracs)
+        # assemble terms if user allows mantissa separate from exponent approximation
+        if(use_mse_approx == TRUE){
+          #-------------------------------------------------------------------------------
+          z <- (sqrt((stor_coef * distance* distance)/
+                       (4*transmissivity*test_time)))
+          t1 <- erfc(z)
+          
+          t2_a <- ((transmissivity*test_time)/(stor_coef*leakance*leakance))
+          t2_b <- (distance/leakance)
+          t2 <- separate_mantissa_exponent(t2_a + t2_b)
+          t2$mantissa[which(is.nan(t2$mantissa))] <- 0
+          t2$exponent[which(is.nan(t2$mantissa))] <- 0
+          t2$mantissa[which(is.nan(t2$exponent))] <- 0
+          t2$exponent[which(is.nan(t2$exponent))] <- 0
+          
+          
+          t3_a <- Rmpfr::mpfr(sqrt((transmissivity*test_time)/(stor_coef*leakance*leakance)), prec = prec)
+          t3 <- Rmpfr::erfc(t3_a + z)
+          t3 <- list(exponent = floor(log10(abs(t3))),
+                     mantissa = t3/ (10**floor(log10(abs(t3)))))
+          t3$mantissa[which(is.nan(t3$mantissa))] <- 0
+          t3$exponent[which(is.nan(t3$mantissa))] <- 0
+          t3$mantissa[which(is.nan(t3$exponent))] <- 0
+          t3$exponent[which(is.nan(t3$exponent))] <- 0
+          
+          r <- sum(as.numeric(t1 - ((10**(t3$exponent + t2$exponent)) * (t3$mantissa*t2$mantissa))) * fracs)
+        }
         #-------------------------------------------------------------------------------
         
         
@@ -2881,11 +2990,19 @@ map_stream_depletions <- function(streams,
                            lambda)
       {
         #-------------------------------------------------------------------------------
+        z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time)))
+        t1 <- erfc(z)
+        
         t2_a <- ((lambda*lambda*elapsed_time)/(4*stor_coef*transmissivity))
         t2_b <- ((lambda*distance)/(2*transmissivity))
         t2 <- base::exp(t2_a + t2_b)
         
+        t3_a <- (sqrt((lambda*lambda*elapsed_time)/(4*stor_coef*transmissivity)))
+        t3 <- erfc(t3_a + z)
+        
         infinite_indices <- which(is.infinite(t2))
+        infinite_indices <- unique(c(infinite_indices, which(t3 == 0)))
         all_indices <- c(1:length(elapsed_time))
         #-------------------------------------------------------------------------------
         
@@ -2915,25 +3032,60 @@ map_stream_depletions <- function(streams,
           #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
-          # assemble terms
-          z <- (sqrt((stor_coef * distance* distance)/
-                     (4*transmissivity*elapsed_time[infinite_indices])))
-          t1 <- Rmpfr::erfc(z)
-          
-          
-          t2_a <- Rmpfr::mpfr(((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)),  prec = prec)
-          t2_b <- Rmpfr::mpfr(((lambda*distance)/(2*transmissivity)), prec = prec)
-          t2 <- base::exp(t2_a + t2_b)
-          
-          
-          t3_a <- (sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)))
-          t3 <- Rmpfr::erfc(t3_a + z)
+          # user wants full precision numbers to be calculated
+          if(use_mse_approx == FALSE){
+            #-------------------------------------------------------------------------------
+            # assemble terms
+            z <- (sqrt((stor_coef * distance* distance)/
+                         (4*transmissivity*elapsed_time[infinite_indices])))
+            t1 <- Rmpfr::erfc(z)
+            
+            
+            t2_a <- Rmpfr::mpfr(((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)),  prec = prec)
+            t2_b <- Rmpfr::mpfr(((lambda*distance)/(2*transmissivity)), prec = prec)
+            t2 <- base::exp(t2_a + t2_b)
+            
+            
+            t3_a <- Rmpfr::mpfr(sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)), prec = prec)
+            t3 <- erfc(t3_a + z)
+            t3[is.infinite(z)] <- 0 # at infinity erfc is exactly equal to 0
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # fill infinite indices with higher precision numbers
+            QA[infinite_indices] <- as.numeric(t1 - (t2*t3))
+            #-------------------------------------------------------------------------------
+          }
           #-------------------------------------------------------------------------------
           
+          
           #-------------------------------------------------------------------------------
-          # fill infinite indices with higher precision numbers
-          QA[infinite_indices] <- as.numeric(t1 - (t2*t3))
+          # user allows for small precision loss at large z to speed up program
+          # maybe lost in 10th decimal place
+          if(use_mse_approx == TRUE){
+            #-------------------------------------------------------------------------------
+            z <- (sqrt((stor_coef * distance* distance)/
+                         (4*transmissivity*elapsed_time[infinite_indices])))
+            t1 <- erfc(z)
+            
+            t2_a <- ((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity))
+            t2_b <- ((lambda*distance)/(2*transmissivity))
+            t2 <- separate_mantissa_exponent(t2_a + t2_b)
+            
+            t3_a <- (sqrt((lambda*lambda*elapsed_time[infinite_indices])/(4*stor_coef*transmissivity)))
+            t3 <- asymptotic_erfc_expansion(t3_a + z)
+            t3 <- separate_mantissa_exponent(t3)
+            t3$mantissa[is.infinite(z)] <- 0 # at infinity erfc is exactly equal to 0
+            t3$exponent[is.infinite(z)] <- 0 # at infinity erfc is exactly equal to 0
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # fill infinite indices with higher precision numbers
+            QA[infinite_indices] <- as.numeric(t1 - ((10**(t3$exponent + t2$exponent)) * (t3$mantissa*t2$mantissa)))
+            #-------------------------------------------------------------------------------
+          }
           #-------------------------------------------------------------------------------
+          
           
           #-------------------------------------------------------------------------------
           # are there non-infinity generating terms in base packages that should be calculated
@@ -3329,6 +3481,7 @@ map_stream_depletions <- function(streams,
           depletions_potential_per_well[[i]] <- depletions_total
           #-------------------------------------------------------------------------------
           
+
           # -------------------------------------------------------------------------------
           if(is.null(custom_sdf_time) == FALSE){
             custom_SDF <- custom_sdf_gradient_descent(analytical_model = analytical_model,
@@ -3480,11 +3633,19 @@ map_stream_depletions <- function(streams,
       {
         
         #-------------------------------------------------------------------------------
+        z <- (sqrt((stor_coef * distance* distance)/
+                     (4*transmissivity*elapsed_time)))
+        t1 <- erfc(z)
+        
         t2_a <- ((transmissivity*elapsed_time)/(stor_coef*leakance*leakance))
         t2_b <- (distance/leakance)
         t2 <- base::exp(t2_a + t2_b)
         
+        t3_a <- (sqrt((transmissivity*elapsed_time)/(stor_coef*leakance*leakance)))
+        t3 <- erfc(t3_a + z)
+        
         infinite_indices <- which(is.infinite(t2))
+        infinite_indices <- unique(c(infinite_indices, which(t3 == 0)))
         all_indices <- c(1:length(elapsed_time))
         #-------------------------------------------------------------------------------
         
@@ -3513,26 +3674,63 @@ map_stream_depletions <- function(streams,
           QA <- rep(NA, length(elapsed_time))
           #-------------------------------------------------------------------------------
           
-          #-------------------------------------------------------------------------------
-          # assemble terms
-          z <- (sqrt((stor_coef * distance* distance)/
-                     (4*transmissivity*elapsed_time[infinite_indices])))
-          t1 <- Rmpfr::erfc(z)
-          
-          
-          t2_a <- Rmpfr::mpfr(((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)),  prec = prec)
-          t2_b <- Rmpfr::mpfr((distance/leakance), prec = prec)
-          t2 <- base::exp(t2_a + t2_b)
-          
-          
-          t3_a <- (sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)))
-          t3 <- Rmpfr::erfc(t3_a + z)
-          #-------------------------------------------------------------------------------
           
           #-------------------------------------------------------------------------------
-          # fill infinite indices with higher precision numbers
-          QA[infinite_indices] <- as.numeric(t1 - (t2*t3))
+          # user wants full precision numbers to be calculated
+          if(use_mse_approx == FALSE){
+            #-------------------------------------------------------------------------------
+            # assemble terms
+            z <- (sqrt((stor_coef * distance* distance)/
+                         (4*transmissivity*elapsed_time[infinite_indices])))
+            t1 <- Rmpfr::erfc(z)
+            
+            
+            t2_a <- Rmpfr::mpfr(((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)),  prec = prec)
+            t2_b <- Rmpfr::mpfr((distance/leakance), prec = prec)
+            t2 <- base::exp(t2_a + t2_b)
+            
+            
+            t3_a <- Rmpfr::mpfr(sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance)), prec = prec)
+            t3 <- erfc(t3_a + z)
+            t3[is.infinite(z)] <- 0
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # fill infinite indices with higher precision numbers
+            QA[infinite_indices] <- as.numeric(t1 - (t2*t3))
+            #-------------------------------------------------------------------------------
+          }
           #-------------------------------------------------------------------------------
+          
+          
+          #-------------------------------------------------------------------------------
+          # user allows for small precision loss at large z to speed up program
+          # maybe lost in 10th decimal place
+          if(use_mse_approx == TRUE){
+            #-------------------------------------------------------------------------------
+            z <- (sqrt((stor_coef * distance* distance)/
+                         (4*transmissivity*elapsed_time[infinite_indices])))
+            t1 <- erfc(z)
+            
+            t2_a <- ((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance))
+            t2_b <- (distance/leakance)
+            t2 <- separate_mantissa_exponent(t2_a + t2_b)
+            
+            
+            t3_a <- sqrt((transmissivity*elapsed_time[infinite_indices])/(stor_coef*leakance*leakance))
+            t3 <- asymptotic_erfc_expansion(t3_a + z)
+            t3 <- separate_mantissa_exponent(t3)
+            t3$mantissa[is.infinite(z)] <- 0 # at infinity erfc is exactly equal to 0
+            t3$exponent[is.infinite(z)] <- 0 # at infinity erfc is exactly equal to 0
+            #-------------------------------------------------------------------------------
+            
+            #-------------------------------------------------------------------------------
+            # fill infinite indices with higher precision numbers
+            QA[infinite_indices] <- as.numeric(t1 - ((10**(t3$exponent + t2$exponent)) * (t3$mantissa*t2$mantissa)))
+            #-------------------------------------------------------------------------------
+          }
+          #-------------------------------------------------------------------------------
+          
           
           #-------------------------------------------------------------------------------
           # are there non-infinity generating terms in base packages that should be calculated
