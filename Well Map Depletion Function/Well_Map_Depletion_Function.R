@@ -47,7 +47,8 @@ map_stream_depletions <- function(streams,
                                   leakance_key                     = NULL,
                                   lambda_key                       = NULL,
                                   prec                             = 80,
-                                  use_mse_approx                   = TRUE)
+                                  use_mse_approx                   = TRUE,
+                                  mean_along_line                  = 'arithmetic')
 {
   ############################################################################################
   ######################################### HELPER FUNCTIONS #################################
@@ -92,6 +93,31 @@ map_stream_depletions <- function(streams,
   }
   # ------------------------------------------------------------------------------------------------
   
+  
+  #===========================================================================================
+  # Harmonic mean function, if flow must pass through auifer zones in series
+  # Freeze and Cherry 1979
+  # https://ia802904.us.archive.org/8/items/groundwater-freeze-and-cherry-1979/Freeze_and_Cherry_1979.pdf
+  #===========================================================================================
+  harmmean <- function(values){
+    result <- length(values[is.na(values) == FALSE])/sum(1/values[is.na(values) == FALSE])
+    return(result)
+  }
+  # ------------------------------------------------------------------------------------------------
+  
+  
+  #===========================================================================================
+  # Geometric mean function, if flow occurrs in patchy heterogeneous aquifer
+  # Journel et al 1986
+  # https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/1995-Earlier/SPE15128.pdf
+  # Gelhar (1993)
+  # https://openlibrary.org/books/OL1401626M/Stochastic_subsurface_hydrology
+  #===========================================================================================
+  geomean <- function(values){
+    result <- prod(values, na.rm = TRUE)**(1/length(values[is.na(values) == FALSE]))
+    return(result)
+  }
+  # ------------------------------------------------------------------------------------------------
   
   
   #===========================================================================================
@@ -2815,14 +2841,34 @@ map_stream_depletions <- function(streams,
             
             #-------------------------------------------------------------------------------
             # what are the transmissivities of those grid cells
-            transmissivities <- lapply(1:length(grid_inds), function(k){
-              gr <- gr[grid_inds[[k]], ]
-              mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
-            })
-            storage_coefficients <- lapply(1:length(grid_inds), function(k){
-              gr <- gr[grid_inds[[k]], ]
-              mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
-            })
+            if(tolower(mean_along_line) == 'arithmetic'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+              })
+            } else if(tolower(mean_along_line) == 'geometric'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                geomean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))))
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                geomean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))))
+              })
+            } else if(tolower(mean_along_line) == 'harmonic'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                harmmean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))))
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                harmmean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))))
+              })
+            }
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
@@ -3433,14 +3479,34 @@ map_stream_depletions <- function(streams,
             
             #-------------------------------------------------------------------------------
             # what are the transmissivities of those grid cells
-            transmissivities <- lapply(1:length(grid_inds), function(i){
-              gr <- gr[grid_inds[[i]], ]
-              mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
-            })
-            storage_coefficients <- lapply(1:length(grid_inds), function(i){
-              gr <- gr[grid_inds[[i]], ]
-              mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
-            })
+            if(tolower(mean_along_line) == 'arithmetic'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+              })
+            } else if(tolower(mean_along_line) == 'geometric'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                geomean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))))
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                geomean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))))
+              })
+            } else if(tolower(mean_along_line) == 'harmonic'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                harmmean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))))
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                harmmean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))))
+              })
+            }
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
@@ -3454,7 +3520,13 @@ map_stream_depletions <- function(streams,
           for(j in 1:length(RN)){
             stream_inds <- reaches %in% RN[j]
             lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
-            lambdas[[j]] <- mean(lambda, na.rm = T)
+            if(tolower(mean_along_line) == 'arithmetic'){
+              lambdas[[j]] <- mean(lambda, na.rm = T)
+            } else if(tolower(mean_along_line) == 'geometric'){
+              lambdas[[j]] <- geomean(lambda)
+            } else if(tolower(mean_along_line) == 'harmonic'){
+              lambdas[[j]] <- harmmean(lambda)
+            }
           }
           # lambda <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
           # lambdas <- vector(mode = 'list', length = length(lambda))
@@ -4076,16 +4148,38 @@ map_stream_depletions <- function(streams,
             })
             #-------------------------------------------------------------------------------
             
+            
+            
             #-------------------------------------------------------------------------------
             # what are the transmissivities of those grid cells
-            transmissivities <- lapply(1:length(grid_inds), function(i){
-              gr <- gr[grid_inds[[i]], ]
-              mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
-            })
-            storage_coefficients <- lapply(1:length(grid_inds), function(i){
-              gr <- gr[grid_inds[[i]], ]
-              mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
-            })
+            if(tolower(mean_along_line) == 'arithmetic'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                mean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))), na.rm = T)
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                mean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))), na.rm = T)
+              })
+            } else if(tolower(mean_along_line) == 'geometric'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                geomean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))))
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                geomean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))))
+              })
+            } else if(tolower(mean_along_line) == 'harmonic'){
+              transmissivities <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                harmmean(as.vector(unlist(st_drop_geometry(gr[,grid_transmissivity_key]))))
+              })
+              storage_coefficients <- lapply(1:length(grid_inds), function(i){
+                gr <- gr[grid_inds[[i]], ]
+                harmmean(as.vector(unlist(st_drop_geometry(gr[,grid_stor_coef_key]))))
+              })
+            }
             #-------------------------------------------------------------------------------
           }
           #-------------------------------------------------------------------------------
@@ -4099,7 +4193,13 @@ map_stream_depletions <- function(streams,
           for(j in 1:length(RN)){
             stream_inds <- reaches %in% RN[j]
             leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, leakance_key])))
-            leakances[[j]] <- mean(leakance, na.rm = T)
+            if(tolower(mean_along_line) == 'arithmetic'){
+              leakances[[j]] <- mean(leakance, na.rm = T)
+            } else if(tolower(mean_along_line) == 'geometric'){
+              leakances[[j]] <- geomean(leakances)
+            } else if(tolower(mean_along_line) == 'harmonic'){
+              leakances[[j]] <- harmmean(leakances)
+            }
           }
           # leakance <- as.vector(unlist(st_drop_geometry(stream_points_geometry[stream_inds, lambda_key])))
           # leakances <- vector(mode = 'list', length = length(leakance))
@@ -5070,7 +5170,12 @@ map_stream_depletions <- function(streams,
   }
   
   
-  
+  if(!tolower(mean_along_line) %in% c('arithmetic', 'geometric', 'harmonic')){
+    stop(paste0('\nmap_stream_depletions.R encountered Error:    \n',
+                paste0('Averaging criteria of \'', mean_along_line),'\'\n',
+                paste0('not in accepted values (',paste0(c('arithmetic', 'geometric', 'harmonic'), collapse = ', ')),')', '\n',
+                'exiting program ...'))
+  }
   
   
   if(clip_by_basin == TRUE){
