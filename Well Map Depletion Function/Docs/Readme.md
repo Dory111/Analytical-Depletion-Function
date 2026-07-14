@@ -125,11 +125,9 @@ to 0.5, then any answer between 0.49 and 0.51 is acceptable. <br/> <br/>
 default *1000*, describes how many times the program should try
 timesteps to find when the depletions in reaches ‘r’ equal the pumping
 in well ‘w’. <br/> <br/> <b><font size = "3">pumping</font></b>:
-*matrix*, a matrix where the number of rows equals the number of wells,
-and the number of columns equals the number of timesteps. Each row,
-column pair contains a pumping rate for that timestep. For example, if
-the timesteps are in days and m\[1,1\] = 100 this is equivalent to a
-pumping of 100 units on day 1 for well 1. <br/> <br/>
+*numeric vector*, a vector of timesteps to evaluate all wells at. For
+example passing c(1,2,3) will evaluate all wells at timesteps 1, 2 and 3
+for a unit pumping rate. <br/> <br/>
 <b><font size = "3">subwatersheds</font></b>: *sf object* default
 *NULL*, if the proximity criteria is set to ‘adjacent’ or
 ‘adjacent+expanding’ this argument is necessary. It describes what

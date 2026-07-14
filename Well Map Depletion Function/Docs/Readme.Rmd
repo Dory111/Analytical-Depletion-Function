@@ -103,7 +103,7 @@ This solution is identical to the Hantush (1965) solution in the special case th
 <b><font size = "3">n_sdf_convergence_tries</font></b>: *numeric* default *1000*, describes how many times the program should try timesteps to find when the depletions in reaches 'r' equal the pumping in well 'w'.
 <br/>
 <br/>
-<b><font size = "3">pumping</font></b>: *matrix*, a matrix where the number of rows equals the number of wells, and the number of columns equals the number of timesteps. Each row, column pair contains a pumping rate for that timestep. For example, if the timesteps are in days and m[1,1] = 100 this is equivalent to a pumping of 100 units on day 1 for well 1.
+<b><font size = "3">pumping</font></b>: *numeric vector*, a vector of timesteps to evaluate all wells at. For example passing c(1,2,3) will evaluate all wells at timesteps 1, 2 and 3 for a unit pumping rate.
 <br/>
 <br/>
 <b><font size = "3">subwatersheds</font></b>: *sf object* default *NULL*, if the proximity criteria is set to 'adjacent' or 'adjacent+expanding' this argument is necessary. It describes what subwatersheds are to be used in the proximity criteria assignment. For each well streams within the subwatershed of the well or adjacent subwatersheds are considered to be effected by the wells pumping.
